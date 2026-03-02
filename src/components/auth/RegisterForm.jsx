@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { useAuth } from "../../hooks/useAuthHook.js";
+import { useAuth } from "../../hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 import {
   Eye,
   EyeOff,
@@ -12,6 +13,7 @@ import {
 
 const RegisterForm = ({ onToggleMode }) => {
   const { signUp, loading } = useAuth();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     nom: "",
     email: "",
@@ -23,7 +25,6 @@ const RegisterForm = ({ onToggleMode }) => {
     registre_commerce: "",
     adresse_siege: "",
     telephone_entreprise: "",
-    email_entreprise: "",
     acceptTerms: false,
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -81,6 +82,9 @@ const RegisterForm = ({ onToggleMode }) => {
       return;
     }
 
+    // Utiliser l'email unique pour l'utilisateur et l'entreprise
+    const userEmail = formData.email;
+
     const metadata = {
       nom: formData.nom,
       nom_entreprise: formData.nom_entreprise,
@@ -89,30 +93,16 @@ const RegisterForm = ({ onToggleMode }) => {
       registre_commerce: formData.registre_commerce,
       adresse_siege: formData.adresse_siege,
       telephone_entreprise: formData.telephone_entreprise,
-      email_entreprise: formData.email_entreprise,
+      email_entreprise: formData.email, // Utiliser le même email pour l'entreprise
     };
 
-    const result = await signUp(formData.email, formData.password, metadata);
+    const result = await signUp(userEmail, formData.password, metadata);
 
     if (result.success) {
-      setSuccess(
-        "Inscription réussie! Veuillez vérifier votre email pour activer votre compte.",
-      );
-      // Réinitialiser le formulaire
-      setFormData({
-        nom: "",
-        email: "",
-        password: "",
-        confirmPassword: "",
-        nom_entreprise: "",
-        raison_sociale: "",
-        ifu: "",
-        registre_commerce: "",
-        adresse_siege: "",
-        telephone_entreprise: "",
-        email_entreprise: "",
-        acceptTerms: false,
-      });
+      setSuccess("Inscription réussie! Redirection vers le tableau de bord...");
+
+      // Rediriger vers le dashboard après inscription réussie
+      navigate("/dashboard");
     } else {
       setError(result.error || "Erreur lors de l'inscription");
     }
@@ -163,6 +153,30 @@ const RegisterForm = ({ onToggleMode }) => {
                 onChange={handleChange}
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 placeholder="Jean Dupont"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Email *
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Mail className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                placeholder="contact@entreprise.com"
                 required
               />
             </div>
@@ -283,47 +297,6 @@ const RegisterForm = ({ onToggleMode }) => {
                 onChange={handleChange}
                 className="block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 placeholder="+229 12 34 56 78"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="email_entreprise"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Email entreprise
-              </label>
-              <input
-                type="email"
-                id="email_entreprise"
-                name="email_entreprise"
-                value={formData.email_entreprise}
-                onChange={handleChange}
-                className="block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                placeholder="contact@entreprise.com"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              Email professionnel *
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Mail className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                placeholder="contact@entreprise.com"
-                required
               />
             </div>
           </div>

@@ -11,22 +11,23 @@ import {
   Menu,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useAuth } from "../hooks/useAuth";
 
 function Dashboard() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { user, profile, signOut } = useAuth();
 
   useEffect(() => {
-    const userData = localStorage.getItem("user");
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setTimeout(() => setUser(parsedUser), 0);
+    // Vérifier si l'utilisateur est connecté
+    if (!user || !profile) {
+      navigate("/auth");
+      return;
     }
-  }, []);
+  }, [user, profile, navigate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("user");
+  const handleLogout = async () => {
+    await signOut();
     navigate("/auth");
   };
 
@@ -71,7 +72,9 @@ function Dashboard() {
                 >
                   <div className="w-10 rounded-full bg-primary flex items-center justify-center">
                     <span className="text-white font-semibold">
-                      {user?.nom?.charAt(0)?.toUpperCase() || "U"}
+                      {profile?.nom?.charAt(0)?.toUpperCase() ||
+                        user?.nom?.charAt(0)?.toUpperCase() ||
+                        "U"}
                     </span>
                   </div>
                 </div>
@@ -98,7 +101,7 @@ function Dashboard() {
             {/* Welcome Section */}
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-gray-900">
-                Bienvenue, {user?.nom || "Utilisateur"}!
+                Bienvenue, {profile?.nom || user?.nom || "Utilisateur"}!
               </h1>
               <p className="text-gray-600 mt-2">
                 Voici un aperçu de votre activité de gestion de stock

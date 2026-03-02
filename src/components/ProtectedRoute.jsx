@@ -1,25 +1,9 @@
 import { Navigate, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useAuth } from "../hooks/useAuth";
 
 function ProtectedRoute({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user, profile, loading } = useAuth();
   const location = useLocation();
-
-  useEffect(() => {
-    // Vérifier si l'utilisateur est connecté
-    const userData = localStorage.getItem("user");
-    if (userData) {
-      try {
-        const parsedUser = JSON.parse(userData);
-        setTimeout(() => setUser(parsedUser), 0);
-      } catch (error) {
-        console.error("Error parsing user data:", error);
-        localStorage.removeItem("user");
-      }
-    }
-    setTimeout(() => setLoading(false), 0);
-  }, []);
 
   if (loading) {
     return (
@@ -29,7 +13,7 @@ function ProtectedRoute({ children }) {
     );
   }
 
-  if (!user) {
+  if (!user || !profile) {
     // Rediriger vers la page de connexion avec l'URL actuelle comme paramètre
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }

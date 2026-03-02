@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import React from "react";
 import { auth, users } from "../config/supabase";
 import { AuthContext } from "./authContext";
 
@@ -11,15 +12,10 @@ export const AuthProvider = ({ children }) => {
   // Charger les données utilisateur complètes
   const loadUserProfile = async (userId) => {
     try {
-      console.log("🔍 loadUserProfile appelé avec userId:", userId);
-
       const { data: profileData, error: profileError } =
         await users.getProfile(userId);
 
-      console.log("📊 Résultat profil:", { profileData, profileError });
-
       if (profileError) {
-        console.error("Error loading profile:", profileError);
         return;
       }
 
@@ -30,8 +26,6 @@ export const AuthProvider = ({ children }) => {
         const { data: permissionsData, error: permissionsError } =
           await users.getUserPermissions(profileData.id_user);
 
-        console.log("🔐 Permissions:", { permissionsData, permissionsError });
-
         if (!permissionsError && permissionsData) {
           const perms = permissionsData
             .map((p) => p.permission_name)
@@ -39,49 +33,17 @@ export const AuthProvider = ({ children }) => {
           setPermissions(perms);
         }
       }
-    } catch (error) {
-      console.error("Error in loadUserProfile:", error);
-    }
+    } catch (error) {}
   };
 
   // Initialiser l'authentification
   useEffect(() => {
     const initializeAuth = async () => {
-      try {
-        // Obtenir la session actuelle
-        const { session } = await auth.getCurrentSession();
-
-        if (session?.user) {
-          setUser(session.user);
-          await loadUserProfile(session.user.id);
-        }
-      } catch (error) {
-        console.error("Error initializing auth:", error);
-      } finally {
-        setLoading(false);
-      }
+      // Plus de vérification localStorage - démarrage frais
+      setLoading(false);
     };
 
     initializeAuth();
-
-    // Écouter les changements d'état d'authentification
-    const {
-      data: { subscription },
-    } = auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session);
-
-      if (session?.user) {
-        setUser(session.user);
-        await loadUserProfile(session.user.id);
-      } else {
-        setUser(null);
-        setProfile(null);
-        setPermissions([]);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
   }, []);
 
   // Fonctions d'authentification
@@ -94,17 +56,18 @@ export const AuthProvider = ({ children }) => {
         throw error;
       }
 
-      // Si connexion réussie, charger le profil
+      // Si connexion réussie, charger le profil uniquement
       if (data.user) {
+        // Mettre à jour l'état
+        setUser(data.user);
+
         // Utiliser id_user depuis notre table ou id depuis Supabase Auth
         const userId = data.user.id_user || data.user.id;
-        console.log("🔍 Chargement profil pour userId:", userId);
         await loadUserProfile(userId);
       }
 
       return { success: true, data };
     } catch (error) {
-      console.error("Sign in error:", error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -121,9 +84,18 @@ export const AuthProvider = ({ children }) => {
         throw new Error(result.error);
       }
 
+      // Si inscription réussie, charger le profil uniquement
+      if (result.data?.user) {
+        // Mettre à jour l'état
+        setUser(result.data.user);
+
+        // Utiliser id_user depuis notre table ou id depuis Supabase Auth
+        const userId = result.data.user.id_user || result.data.user.id;
+        await loadUserProfile(userId);
+      }
+
       return { success: true, data: result.data };
     } catch (error) {
-      console.error("Sign up error:", error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -139,13 +111,13 @@ export const AuthProvider = ({ children }) => {
         throw error;
       }
 
+      // Nettoyer l'état uniquement
       setUser(null);
       setProfile(null);
       setPermissions([]);
 
       return { success: true };
     } catch (error) {
-      console.error("Sign out error:", error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -162,7 +134,6 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, data };
     } catch (error) {
-      console.error("Reset password error:", error);
       return { success: false, error: error.message };
     }
   };
@@ -178,7 +149,6 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, data };
     } catch (error) {
-      console.error("Update password error:", error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -204,7 +174,6 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, data };
     } catch (error) {
-      console.error("Update profile error:", error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -282,6 +251,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
+  const context = React.useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 };
 
 export default AuthContext;

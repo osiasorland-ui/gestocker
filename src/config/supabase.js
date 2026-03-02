@@ -13,75 +13,104 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 // Fonctions utilitaires pour l'authentification avec table utilisateurs personnalisée
 export const auth = {
-  // Connexion avec email et mot de passe (vérification dans table utilisateurs)
+  // Connexion avec email et mot de passe (vérification directe)
   signIn: async (email, password) => {
     try {
-      console.log("🔍 Début signIn avec:", email);
+      // Étape 1: Vérifier si c'est un email d'entreprise
+      const { data: entrepriseData, error: entrepriseError } = await supabase
+        .from("entreprises")
+        .select("email_entreprise")
+        .eq("email_entreprise", email)
+        .maybeSingle();
 
-      // Utiliser la RPC pour vérifier les identifiants (bypass RLS)
-      console.log("📞 Appel RPC signin_check_credentials...");
-      const { data: userData, error: rpcError } = await supabase.rpc(
-        "signin_check_credentials",
-        {
-          p_email: email,
-          p_mot_de_passe: password,
-        },
-      );
+      let userData, userError;
 
-      console.log("📊 Réponse RPC:", { userData, rpcError });
+      if (entrepriseData) {
+        // Si c'est un email d'entreprise, chercher l'admin (id_role = UUID Admin)
 
-      if (rpcError) {
-        console.error("❌ Erreur RPC:", rpcError);
-        return { data: null, error: rpcError.message };
+        // D'abord récupérer l'UUID du rôle Admin
+        const { data: adminRole } = await supabase
+          .from("roles")
+          .select("id_role")
+          .eq("libelle", "Admin")
+          .single();
+
+        const result = await supabase
+          .from("utilisateurs")
+          .select(
+            `
+            id_user,
+            nom,
+            email,
+            id_role,
+            id_entreprise,
+            roles(libelle)
+          `,
+          )
+          .eq("email", email)
+          .eq("mot_de_passe", password)
+          .eq("id_role", adminRole.id_role) // Admin UUID
+          .maybeSingle();
+
+        userData = result.data;
+        userError = result.error;
+      } else {
+        // Sinon, chercher un utilisateur normal (id_role ≠ Admin UUID)
+
+        // Récupérer l'UUID du rôle Admin
+        const { data: adminRole } = await supabase
+          .from("roles")
+          .select("id_role")
+          .eq("libelle", "Admin")
+          .single();
+
+        const result = await supabase
+          .from("utilisateurs")
+          .select(
+            `
+            id_user,
+            nom,
+            email,
+            id_role,
+            id_entreprise,
+            roles(libelle)
+          `,
+          )
+          .eq("email", email)
+          .eq("mot_de_passe", password)
+          .neq("id_role", adminRole.id_role) // Non-admin UUID
+          .maybeSingle();
+
+        userData = result.data;
+        userError = result.error;
       }
 
-      if (!userData || userData.error) {
-        console.error("❌ Données invalides:", userData);
+      if (userError) {
+        return { data: null, error: "Email ou mot de passe incorrect" };
+      }
+
+      if (!userData) {
         return {
           data: null,
-          error: userData?.error || "Email ou mot de passe incorrect",
+          error: "Email ou mot de passe incorrect",
         };
       }
 
-      console.log("✅ Utilisateur trouvé, tentative Supabase Auth...");
-      // Essayer la connexion Supabase Auth si l'utilisateur existe là-bas
-      const { data: authData, error: authError } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-      console.log("🔐 Réponse Supabase Auth:", { authData, authError });
-
-      // Si la connexion Supabase Auth échoue, créer une session basique
-      if (authError) {
-        console.warn(
-          "⚠️ Connexion Supabase Auth échouée, utilisation des données locales:",
-          authError,
-        );
-
-        // Créer une session basique avec les données de notre table
-        const result = {
-          data: {
-            user: userData[0], // Prendre le premier utilisateur du tableau
-            session: {
-              user: userData[0],
-              access_token: "local_token",
-              refresh_token: "local_refresh",
-              expires_at: Date.now() + 3600000, // 1 heure
-            },
+      // Créer une session basique avec les données de notre table
+      const result = {
+        data: {
+          user: userData,
+          session: {
+            user: userData,
+            access_token: "local_token",
+            refresh_token: "local_refresh",
+            expires_at: Date.now() + 3600000, // 1 heure
           },
-          error: null,
-        };
-        console.log("🎯 Retour session basique:", result);
-        return result;
-      }
-
-      const finalResult = { data: authData, error: null };
-      console.log("🎉 Retour final:", finalResult);
-      return finalResult;
+        },
+        error: null,
+      };
+      return result;
     } catch (error) {
-      console.error("💥 Erreur générale signIn:", error);
       return { data: null, error: error.message };
     }
   },
@@ -89,56 +118,137 @@ export const auth = {
   // Inscription
   signUp: async (email, password, metadata = {}) => {
     try {
-      // Étape 1: Créer entreprise + utilisateur (tables métier) via RPC SECURITY DEFINER
-      // Ceci évite les blocages RLS sur les inserts.
-      const { data: rpcData, error: rpcError } = await supabase.rpc(
-        "signup_create_company_and_user",
-        {
-          p_nom_commercial: metadata.nom_entreprise,
-          p_raison_sociale: metadata.raison_sociale || null,
-          p_ifu: metadata.ifu,
-          p_registre_commerce: metadata.registre_commerce,
-          p_adresse_siege: metadata.adresse_siege || null,
-          p_telephone_contact: metadata.telephone_entreprise || null,
-          p_email_entreprise: metadata.email_entreprise || null,
-          p_nom_user: metadata.nom || "Utilisateur",
-          p_email_user: email,
-          p_mot_de_passe: password,
-          p_id_role: metadata.id_role || null,
-        },
-      );
+      // Étape 1: Créer l'entreprise directement
+      const { data: entrepriseData, error: entrepriseError } = await supabase
+        .from("entreprises")
+        .insert({
+          nom_commercial: metadata.nom_entreprise,
+          raison_sociale: metadata.raison_sociale || metadata.nom_entreprise,
+          ifu: metadata.ifu,
+          registre_commerce: metadata.registre_commerce,
+          adresse_siege: metadata.adresse_siege || null,
+          telephone_contact: metadata.telephone_entreprise || null,
+          email_entreprise: metadata.email_entreprise || email,
+          logo_path: metadata.logo_base64 || null, // Utiliser logo_path qui existe en base
+        })
+        .select()
+        .single();
 
-      if (rpcError) {
-        console.error("Erreur RPC:", rpcError);
+      if (entrepriseError) {
+        // Gérer les erreurs spécifiques
+        if (
+          entrepriseError.message.includes(
+            "duplicate key value violates unique constraint",
+          )
+        ) {
+          if (
+            entrepriseError.message.includes("ifu") ||
+            entrepriseError.message.includes("entreprises_new_ifu_key")
+          ) {
+            return {
+              data: null,
+              error: "IFU_EXISTS",
+            };
+          }
+          if (
+            entrepriseError.message.includes("registre_commerce") ||
+            entrepriseError.message.includes(
+              "entreprises_new_registre_commerce_key",
+            )
+          ) {
+            return {
+              data: null,
+              error: "REGISTRE_EXISTS",
+            };
+          }
+          if (entrepriseError.message.includes("email_entreprise")) {
+            return {
+              data: null,
+              error: "EMAIL_EXISTS",
+            };
+          }
+        }
+
         return {
           data: null,
-          error: `Erreur de configuration: ${rpcError.message}. Veuillez contacter l'administrateur pour déployer les fonctions RPC.`,
+          error: entrepriseError.message,
         };
       }
 
-      const entrepriseId = rpcData?.id_entreprise ?? null;
-      const userId = rpcData?.id_user ?? null;
+      // Étape 2: Créer l'utilisateur directement
 
-      // Étape 3: Créer le compte Supabase auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            user_id: userId,
-            entreprise_id: entrepriseId,
-            ...metadata,
-          },
+      // Récupérer l'UUID du rôle Admin
+      const { data: adminRole } = await supabase
+        .from("roles")
+        .select("id_role")
+        .eq("libelle", "Admin")
+        .single();
+
+      const { data: userData, error: userError } = await supabase
+        .from("utilisateurs")
+        .insert({
+          nom: metadata.nom,
+          email: metadata.email_entreprise, // Toujours utiliser l'email entreprise
+          mot_de_passe: password, // Stocker temporairement en clair
+          id_role: adminRole.id_role, // UUID du rôle Admin
+          id_entreprise: entrepriseData.id_entreprise,
+        })
+        .select(
+          `
+          *,
+          roles (*),
+          entreprises (*)
+        `,
+        )
+        .single();
+
+      if (userError) {
+        return {
+          data: null,
+          error: `Erreur création utilisateur: ${userError.message}`,
+        };
+      }
+
+      // Étape 3: Donner les permissions à l'utilisateur
+      const { data: permissionsData } = await supabase
+        .from("permissions")
+        .select("id_permission");
+
+      if (permissionsData && userData.id_role) {
+        // Vérifier d'abord si les permissions existent déjà
+        const { data: existingPermissions } = await supabase
+          .from("role_permission")
+          .select("id_permission")
+          .eq("id_role", userData.id_role);
+
+        const existingPermissionIds =
+          existingPermissions?.map((p) => p.id_permission) || [];
+
+        // Insérer seulement les permissions qui n'existent pas déjà
+        for (const permission of permissionsData) {
+          if (!existingPermissionIds.includes(permission.id_permission)) {
+            await supabase.from("role_permission").insert({
+              id_role: userData.id_role,
+              id_permission: permission.id_permission,
+            });
+          }
+        }
+      }
+
+      // Étape 4: Créer une session locale
+      const sessionData = {
+        user: userData,
+        session: {
+          user: userData,
+          access_token: "local_token",
+          refresh_token: "local_refresh",
+          expires_at: Date.now() + 3600000,
         },
-      });
+      };
 
       return {
-        data: {
-          user: { id_user: userId, email },
-          entreprise: entrepriseId,
-          auth: authData,
-        },
-        error: authError,
+        data: sessionData,
+        error: null,
       };
     } catch (error) {
       return { data: null, error: error.message };
