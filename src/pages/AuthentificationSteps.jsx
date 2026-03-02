@@ -352,7 +352,6 @@ export const Step3Logo = ({
                 className="hidden"
                 accept="image/*"
                 onChange={handleLogoUpload}
-                {...register("logo_path")}
               />
               <label
                 htmlFor="logo-upload"

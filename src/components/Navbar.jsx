@@ -6,6 +6,17 @@ const Navbar = () => {
   const { user, profile, signOut } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
+  // Debug complet des données
+  React.useEffect(() => {
+    console.log("Navbar - Données complètes :", {
+      user,
+      profile,
+      entreprises: profile?.entreprises,
+      logoPath: profile?.entreprises?.logo_path,
+      nomCommercial: profile?.entreprises?.nom_commercial,
+    });
+  }, [user, profile]);
+
   const handleSignOut = async () => {
     await signOut();
   };
@@ -24,7 +35,41 @@ const Navbar = () => {
     return "U"; // Default pour User
   };
 
-  const logoPath = profile?.entreprises?.logo_path;
+  // Obtenir la source du logo (base64 ou URL)
+  const getLogoSrc = () => {
+    const logoPath = profile?.entreprises?.logo_path;
+    console.log("Navbar - logoPath brut:", logoPath); // Debug
+    console.log("Navbar - profile complet:", profile); // Debug
+
+    if (!logoPath) {
+      console.log("Navbar: Pas de logoPath"); // Debug
+      return null;
+    }
+
+    // Si c'est déjà une URL ou commence par http, utiliser directement
+    if (logoPath.startsWith("http") || logoPath.startsWith("/")) {
+      console.log("Navbar: Logo URL détecté"); // Debug
+      return logoPath;
+    }
+
+    // Si c'est du base64, utiliser directement
+    if (logoPath.startsWith("data:image")) {
+      console.log("Navbar: Logo base64 complet détecté"); // Debug
+      return logoPath;
+    }
+
+    // Sinon, considérer que c'est du base64 sans préfixe
+    if (logoPath.length > 100) {
+      // Probablement du base64
+      console.log("Navbar: Logo base64 brut détecté, ajout du préfixe"); // Debug
+      return `data:image/png;base64,${logoPath}`;
+    }
+
+    console.log("Navbar: Logo traité comme URL simple"); // Debug
+    return logoPath;
+  };
+
+  const logoSrc = getLogoSrc();
   const initial = getInitial();
 
   return (
@@ -33,19 +78,27 @@ const Navbar = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo ou initiale */}
           <div className="flex items-center">
-            {logoPath ? (
+            {logoSrc ? (
               <img
-                src={logoPath}
+                src={logoSrc}
                 alt="Logo entreprise"
                 className="h-8 w-8 rounded-lg object-cover"
+                onError={(e) => {
+                  // En cas d'erreur de chargement, masquer l'image et afficher l'initiale
+                  e.target.style.display = "none";
+                  e.target.nextElementSibling.style.display = "flex";
+                }}
               />
-            ) : (
-              <div className="h-8 w-8 bg-gray-900 rounded-lg flex items-center justify-center">
-                <span className="text-white font-semibold text-sm">
-                  {initial}
-                </span>
-              </div>
-            )}
+            ) : null}
+            {/* Fallback: initiale si le logo ne se charge pas */}
+            <div
+              className="h-8 w-8 bg-gray-900 rounded-lg flex items-center justify-center"
+              style={{ display: logoSrc ? "none" : "flex" }}
+            >
+              <span className="text-white font-semibold text-sm">
+                {initial}
+              </span>
+            </div>
             <span className="ml-3 text-xl font-bold text-gray-900">
               {profile?.entreprises?.nom_commercial || "Gestocker"}
             </span>

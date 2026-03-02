@@ -204,30 +204,40 @@ function Authentification() {
 
   const handleLogoUpload = (event) => {
     const file = event.target.files[0];
+    console.log("Fichier sélectionné:", file); // Debug
+
     if (file) {
       if (file.type.startsWith("image/")) {
+        console.log("Type d'image valide:", file.type); // Debug
         setLogoFile(file);
+        console.log("logoFile mis à jour avec:", file.name); // Debug
+
         const reader = new FileReader();
         reader.onloadend = () => {
           setLogoPreview(reader.result);
         };
         reader.readAsDataURL(file);
+
         // Mettre à jour le champ logo_path dans le formulaire
         setValue("logo_path", file.name, { shouldValidate: true });
         // Effacer les erreurs de validation pour le logo
         clearErrors("logo_path");
         setSubmitError("");
 
-        // Forcer la validation du champ logo_path
-        setTimeout(() => {
-          trigger("logo_path");
-        }, 100);
+        console.log("Champ logo_path mis à jour avec:", file.name); // Debug
       } else {
         setSubmitError(
           "Veuillez sélectionner une image valide (JPG, PNG, etc.)",
         );
       }
+    } else {
+      console.log("Aucun fichier sélectionné"); // Debug
     }
+  };
+
+  // Gestionnaire pour react-hook-form
+  const handleLogoChange = (event) => {
+    handleLogoUpload(event);
   };
 
   const onSubmit = async (data) => {
@@ -590,28 +600,37 @@ function Authentification() {
                             <ArrowRight className="w-4 h-4 ml-2" />
                           </motion.button>
                         ) : (
-                          <motion.button
-                            type="submit"
-                            disabled={isLoading || !logoFile}
-                            className={`flex items-center px-6 py-2 rounded-lg transition-colors disabled:opacity-50 ${
-                              !logoFile
-                                ? "bg-gray-400 text-gray-200 cursor-not-allowed"
-                                : "bg-gray-900 text-white hover:bg-gray-800"
-                            }`}
-                            whileHover={
-                              logoFile && !isLoading ? { scale: 1.05 } : {}
-                            }
-                            whileTap={
-                              logoFile && !isLoading ? { scale: 0.95 } : {}
-                            }
-                          >
-                            {isLoading ? (
-                              <span className="loading loading-spinner loading-sm mr-2"></span>
-                            ) : (
-                              <CheckCircle className="w-4 h-4 mr-2" />
+                          <>
+                            {/* Debug: Afficher l'état de logoFile */}
+                            {currentStep === 3 && (
+                              <div className="text-xs text-gray-500 mb-2">
+                                Debug: logoFile ={" "}
+                                {logoFile ? logoFile.name : "null"}
+                              </div>
                             )}
-                            Créer mon compte
-                          </motion.button>
+                            <motion.button
+                              type="submit"
+                              disabled={isLoading || !logoFile}
+                              className={`flex items-center px-6 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+                                !logoFile
+                                  ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                                  : "bg-gray-900 text-white hover:bg-gray-800"
+                              }`}
+                              whileHover={
+                                logoFile && !isLoading ? { scale: 1.05 } : {}
+                              }
+                              whileTap={
+                                logoFile && !isLoading ? { scale: 0.95 } : {}
+                              }
+                            >
+                              {isLoading ? (
+                                <span className="loading loading-spinner loading-sm mr-2"></span>
+                              ) : (
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                              )}
+                              Créer mon compte
+                            </motion.button>
+                          </>
                         )}
                       </div>
                     </form>
