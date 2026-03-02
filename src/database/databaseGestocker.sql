@@ -24,20 +24,17 @@ CREATE TABLE entreprises (
 -- ==========================================
 CREATE TABLE roles (
     id_role SERIAL PRIMARY KEY,
-    libelle VARCHAR(50) NOT NULL,
-    id_entreprise UUID REFERENCES entreprises(id_entreprise) ON DELETE CASCADE
+    libelle VARCHAR(50) NOT NULL
 );
 
 CREATE TABLE permissions (
     id_permission SERIAL PRIMARY KEY,
-    nom_action VARCHAR(100) NOT NULL,
-    id_entreprise UUID REFERENCES entreprises(id_entreprise) ON DELETE CASCADE
+    nom_action VARCHAR(100) NOT NULL
 );
 
 CREATE TABLE role_permission (
     id_role INT REFERENCES roles(id_role) ON DELETE CASCADE,
     id_permission INT REFERENCES permissions(id_permission) ON DELETE CASCADE,
-    id_entreprise UUID REFERENCES entreprises(id_entreprise) ON DELETE CASCADE,
     PRIMARY KEY (id_role, id_permission)
 );
 
@@ -185,3 +182,11 @@ CREATE TABLE notifications (
     id_user INT REFERENCES utilisateurs(id_user),
     id_entreprise UUID REFERENCES entreprises(id_entreprise) ON DELETE CASCADE
 );
+
+INSERT INTO roles (libelle) VALUES 
+('Admin'), 
+('Super User'), 
+('Gerant Principal'), 
+('Gerant'), 
+('Comptable'), 
+('Employés');

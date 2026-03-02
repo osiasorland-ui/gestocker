@@ -20,13 +20,14 @@ function Dashboard() {
   useEffect(() => {
     const userData = localStorage.getItem("user");
     if (userData) {
-      setUser(JSON.parse(userData));
+      const parsedUser = JSON.parse(userData);
+      setTimeout(() => setUser(parsedUser), 0);
     }
   }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("user");
-    navigate("/login");
+    navigate("/auth");
   };
 
   const menuItems = [
@@ -76,7 +77,7 @@ function Dashboard() {
                 </div>
                 <ul
                   tabIndex={0}
-                  className="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52"
+                  className="menu menu-sm dropdown-content mt-3 z-1 p-2 shadow bg-base-100 rounded-box w-52"
                 >
                   <li>
                     <a>Profil</a>
