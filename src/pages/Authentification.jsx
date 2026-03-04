@@ -210,34 +210,28 @@ function Authentification() {
 
   const handleLogoUpload = (event) => {
     const file = event.target.files[0];
-    console.log("Fichier sélectionné:", file); // Debug
-    
+
     if (file) {
       if (file.type.startsWith("image/")) {
-        console.log("Type d'image valide:", file.type); // Debug
         setLogoFile(file);
-        console.log("logoFile mis à jour avec:", file.name); // Debug
-        
+
         const reader = new FileReader();
         reader.onloadend = () => {
-          setLogoPreview(reader.result);
+          const base64String = reader.result;
+          setFormData((prev) => ({
+            ...prev,
+            logo_base64: base64String,
+          }));
+          clearErrors("logo_path");
+          setSubmitError("");
         };
-        reader.readAsDataURL(file);
-        
-        // Mettre à jour le champ logo_path dans le formulaire
-        setValue("logo_path", file.name, { shouldValidate: true });
-        // Effacer les erreurs de validation pour le logo
-        clearErrors("logo_path");
-        setSubmitError("");
-        
-        console.log("Champ logo_path mis à jour avec:", file.name); // Debug
       } else {
         setSubmitError(
           "Veuillez sélectionner une image valide (JPG, PNG, etc.)",
         );
       }
     } else {
-      console.log("Aucun fichier sélectionné"); // Debug
+      // Aucun fichier sélectionné
     }
   };
 
@@ -609,8 +603,12 @@ function Authentification() {
                                 ? "bg-gray-400 text-gray-200 cursor-not-allowed"
                                 : "bg-gray-900 text-white hover:bg-gray-800"
                             }`}
-                            whileHover={logoFile && !isLoading ? { scale: 1.05 } : {}}
-                            whileTap={logoFile && !isLoading ? { scale: 0.95 } : {}}
+                            whileHover={
+                              logoFile && !isLoading ? { scale: 1.05 } : {}
+                            }
+                            whileTap={
+                              logoFile && !isLoading ? { scale: 0.95 } : {}
+                            }
                           >
                             {isLoading ? (
                               <span className="loading loading-spinner loading-sm mr-2"></span>

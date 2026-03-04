@@ -1,5 +1,5 @@
-// Fichier principal d'exportation pour la rétrocompatibilité
-// Importe tout depuis les modules spécialisés et réexporte
+// Point d'entrée principal pour toutes les configurations Supabase
+// Exporte tout depuis les modules spécialisés
 
 export { supabase, auth } from "./auth.js";
 export { users } from "./users.js";

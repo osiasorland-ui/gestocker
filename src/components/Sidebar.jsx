@@ -43,6 +43,11 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
           active: location.pathname === "/stock/categories",
         },
         {
+          label: "Entrepôts",
+          path: "/stock/entrepots",
+          active: location.pathname === "/stock/entrepots",
+        },
+        {
           label: "Mouvements",
           path: "/stock/mouvements",
           active: location.pathname === "/stock/mouvements",
