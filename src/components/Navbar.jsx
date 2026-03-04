@@ -1,6 +1,6 @@
 import React from "react";
 import { useAuth } from "../hooks/useAuthHook.js";
-import { Building2, LogOut, Menu, X } from "lucide-react";
+import { Menu, X, Bell, Search } from "lucide-react";
 
 const Navbar = () => {
   const { user, profile, signOut } = useAuth();
@@ -10,109 +10,65 @@ const Navbar = () => {
     await signOut();
   };
 
-  // Obtenir la première lettre du nom de l'entreprise ou du nom de l'utilisateur
-  const getInitial = () => {
-    if (profile?.entreprises?.logo_path) {
-      return null; // Afficher le logo si disponible
-    }
-    if (profile?.entreprises?.nom_commercial) {
-      return profile.entreprises.nom_commercial.charAt(0).toUpperCase();
-    }
-    if (user?.nom) {
-      return user.nom.charAt(0).toUpperCase();
-    }
-    return "U"; // Default pour User
-  };
-
-  // Obtenir la source du logo (base64 ou URL)
-  const getLogoSrc = () => {
-    const logoPath = profile?.entreprises?.logo_path;
-
-    if (!logoPath) {
-      return null;
-    }
-
-    // Si c'est déjà une URL ou commence par http, utiliser directement
-    if (logoPath.startsWith("http") || logoPath.startsWith("/")) {
-      return logoPath;
-    }
-
-    // Si c'est du base64, utiliser directement
-    if (logoPath.startsWith("data:image")) {
-      return logoPath;
-    }
-
-    // Sinon, considérer que c'est du base64 sans préfixe
-    if (logoPath.length > 100) {
-      return `data:image/png;base64,${logoPath}`;
-    }
-
-    return logoPath;
-  };
-
-  const logoSrc = getLogoSrc();
-  const initial = getInitial();
-
   return (
-    <nav className="bg-white border-b border-gray-200 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav className="bg-white shadow-sm border-b border-gray-200">
+      <div className="max-w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo ou initiale */}
-          <div className="flex items-center">
-            {logoSrc ? (
-              <img
-                src={logoSrc}
-                alt="Logo entreprise"
-                className="h-8 w-8 rounded-lg object-cover"
-                onError={(e) => {
-                  // En cas d'erreur de chargement, masquer l'image et afficher l'initiale
-                  e.target.style.display = "none";
-                  e.target.nextElementSibling.style.display = "flex";
-                }}
-              />
-            ) : null}
-            {/* Fallback: initiale si le logo ne se charge pas */}
-            <div
-              className="h-8 w-8 bg-black rounded-lg flex items-center justify-center"
-              style={{ display: logoSrc ? "none" : "flex" }}
-            >
-              <span className="text-white font-semibold text-sm">
-                {initial}
-              </span>
-            </div>
-            <span className="ml-3 text-xl font-bold text-gray-900">
-              {profile?.entreprises?.nom_commercial || "Gestocker"}
-            </span>
-          </div>
-
-          {/* Menu desktop */}
-          <div className="hidden md:flex items-center space-x-4">
-            <div className="flex items-center space-x-3">
-              <span className="text-sm text-gray-600">
-                {user?.nom || "Utilisateur"}
-              </span>
+          {/* Section gauche - Actions et recherche */}
+          <div className="flex items-center space-x-4">
+            {/* Bouton menu mobile */}
+            <div className="lg:hidden">
               <button
-                onClick={handleSignOut}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-900 hover:text-white hover:border-gray-900 transition-colors"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors"
               >
-                <LogOut className="w-4 h-4 mr-2" />
-                Déconnexion
+                {isMenuOpen ? (
+                  <X className="w-6 h-6" />
+                ) : (
+                  <Menu className="w-6 h-6" />
+                )}
               </button>
             </div>
+
+            {/* Barre de recherche */}
+            <div className="hidden md:block">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  className="block w-64 pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 focus:border-gray-500"
+                  placeholder="Rechercher..."
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Menu mobile */}
-          <div className="md:hidden">
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-            >
-              {isMenuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
+          {/* Section droite - Notifications et utilisateur */}
+          <div className="flex items-center space-x-4">
+            {/* Notifications */}
+            <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
             </button>
+
+            {/* Infos utilisateur */}
+            <div className="hidden md:flex items-center space-x-3">
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900">
+                  {user?.nom || "Utilisateur"}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {profile?.entreprises?.nom_commercial || "Administrateur"}
+                </p>
+              </div>
+              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                <span className="text-sm font-medium text-gray-600">
+                  {user?.nom?.charAt(0)?.toUpperCase() || "U"}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -125,9 +81,8 @@ const Navbar = () => {
               </div>
               <button
                 onClick={handleSignOut}
-                className="w-full text-left px-3 py-2 text-base font-medium rounded-md text-gray-700 bg-white border border-gray-300 hover:bg-gray-900 hover:text-white hover:border-gray-900 transition-colors"
+                className="w-full text-left px-3 py-2 text-base font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
               >
-                <LogOut className="w-4 h-4 mr-2 inline" />
                 Déconnexion
               </button>
             </div>
