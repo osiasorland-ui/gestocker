@@ -7,6 +7,7 @@ import {
 import { AuthProvider } from "./hooks/useAuth.jsx";
 import Authentification from "./pages/Authentification";
 import DashboardWrapper from "./pages/DashboardWrapper";
+import Analyse from "./pages/Analyse";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
 import Produits from "./pages/stock/Produits";
@@ -14,6 +15,23 @@ import Categories from "./pages/stock/Categories";
 import Mouvements from "./pages/stock/Mouvements";
 import Entrepots from "./pages/stock/Entrepots";
 import StockWrapper from "./pages/stock/StockWrapper";
+import Commandes from "./pages/ventes/Commandes";
+import Factures from "./pages/ventes/Factures";
+import Clients from "./pages/ventes/Clients";
+import VentesWrapper from "./pages/ventes/VentesWrapper";
+import Fournisseurs from "./pages/achats/Fournisseurs";
+import CommandesAchat from "./pages/achats/CommandesAchat";
+import Receptions from "./pages/achats/Receptions";
+import AchatsWrapper from "./pages/achats/AchatsWrapper";
+import Parametres from "./pages/Parametres";
+import Utilisateurs from "./pages/parametres/Utilisateurs";
+import Systeme from "./pages/parametres/Systeme";
+import Securite from "./pages/parametres/Securite";
+import Sauvegarde from "./pages/parametres/Sauvegarde";
+import Notifications from "./pages/parametres/Notifications";
+import ParametresWrapper from "./pages/parametres/ParametresWrapper";
+import Rapports from "./pages/Rapports";
+import Livreurs from "./pages/livreurs/Livreurs";
 
 function App() {
   return (
@@ -27,6 +45,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <DashboardWrapper />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/analyse"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Analyse />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -67,6 +95,202 @@ function App() {
                 <StockWrapper>
                   <Entrepots />
                 </StockWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ventes/commandes"
+            element={
+              <ProtectedRoute>
+                <VentesWrapper>
+                  <Commandes />
+                </VentesWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ventes/factures"
+            element={
+              <ProtectedRoute>
+                <VentesWrapper>
+                  <Factures />
+                </VentesWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ventes/clients"
+            element={
+              <ProtectedRoute>
+                <VentesWrapper>
+                  <Clients />
+                </VentesWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/achats/fournisseurs"
+            element={
+              <ProtectedRoute>
+                <AchatsWrapper>
+                  <Fournisseurs />
+                </AchatsWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/achats/commandes"
+            element={
+              <ProtectedRoute>
+                <AchatsWrapper>
+                  <CommandesAchat />
+                </AchatsWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/achats/receptions"
+            element={
+              <ProtectedRoute>
+                <AchatsWrapper>
+                  <Receptions />
+                </AchatsWrapper>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/parametres"
+            element={
+              <ProtectedRoute>
+                <Parametres />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/parametres/utilisateurs"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Utilisateurs />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/parametres/systeme"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Systeme />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/parametres/securite"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Securite />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/parametres/sauvegarde"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Sauvegarde />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/parametres/notifications"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Notifications />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Parametres />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/utilisateurs"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Utilisateurs />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/systeme"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Systeme />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/securite"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Securite />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/sauvegarde"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Sauvegarde />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/notifications"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Notifications />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/livreurs"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Livreurs />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/rapports"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Rapports />
+                </Layout>
               </ProtectedRoute>
             }
           />

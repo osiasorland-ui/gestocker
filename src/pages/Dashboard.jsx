@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { products } from "../config/products";
@@ -25,8 +25,7 @@ import LineChartComponent from "../components/charts/LineChartComponent";
 
 function Dashboard() {
   const navigate = useNavigate();
-  const { user, profile, loading, signOut } = useAuth();
-  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const { user, profile } = useAuth();
   const [stats, setStats] = useState({
     totalProducts: 0,
     totalCategories: 0,
@@ -39,12 +38,12 @@ function Dashboard() {
   });
 
   useEffect(() => {
-    // Vérifier si l'utilisateur est connecté uniquement après le chargement
-    if (!loading && (!user || !profile)) {
+    // Vérifier si l'utilisateur est connecté
+    if (!user || !profile) {
       navigate("/auth");
       return;
     }
-  }, [user, profile, loading, navigate]);
+  }, [user, profile, navigate]);
 
   // Charger les données du dashboard
   useEffect(() => {
@@ -53,8 +52,7 @@ function Dashboard() {
     }
   }, [profile]);
 
-  const loadDashboardData = async () => {
-    setDashboardLoading(true);
+  const loadDashboardData = useCallback(async () => {
     try {
       // Charger toutes les données en parallèle
       const [productsResult, categoriesResult, warehousesResult] =
@@ -120,10 +118,8 @@ function Dashboard() {
       });
     } catch (error) {
       console.error("Erreur dashboard:", error);
-    } finally {
-      setDashboardLoading(false);
     }
-  };
+  });
 
   // Formatter le montant en FCFA
   const formatFCFA = (amount) => {
@@ -134,34 +130,6 @@ function Dashboard() {
       maximumFractionDigits: 0,
     }).format(amount || 0);
   };
-
-  const handleLogout = async () => {
-    await signOut();
-    navigate("/auth");
-  };
-
-  // Afficher un état de chargement pendant la vérification de l'authentification
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600">Chargement...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (dashboardLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600">Chargement du dashboard...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8">
@@ -179,7 +147,7 @@ function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
           <div className="flex items-center">
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <Package className="h-8 w-8 text-blue-600" />
             </div>
             <div className="ml-4">
@@ -195,7 +163,7 @@ function Dashboard() {
 
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
           <div className="flex items-center">
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <Folder className="h-8 w-8 text-green-600" />
             </div>
             <div className="ml-4">
@@ -209,7 +177,7 @@ function Dashboard() {
 
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
           <div className="flex items-center">
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <Warehouse className="h-8 w-8 text-purple-600" />
             </div>
             <div className="ml-4">
@@ -223,7 +191,7 @@ function Dashboard() {
 
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
           <div className="flex items-center">
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <DollarSign className="h-8 w-8 text-yellow-600" />
             </div>
             <div className="ml-4">
@@ -255,7 +223,7 @@ function Dashboard() {
               </p>
             ) : (
               <div className="space-y-3">
-                {stats.lowStockProducts.map((product, index) => (
+                {stats.lowStockProducts.map((product) => (
                   <div
                     key={product.id_produit}
                     className="flex items-center justify-between"
@@ -297,7 +265,7 @@ function Dashboard() {
               </p>
             ) : (
               <div className="space-y-3">
-                {stats.recentProducts.map((product, index) => (
+                {stats.recentProducts.map((product) => (
                   <div
                     key={product.id_produit}
                     className="flex items-center justify-between"

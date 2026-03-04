@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Plus,
   Search,
@@ -8,14 +8,28 @@ import {
   Package,
   Calendar,
   User,
+  AlertCircle,
+  CheckCircle,
 } from "lucide-react";
+import {
+  movements,
+  products as productsService,
+  warehouses as warehousesService,
+} from "../../config/supabase";
+import { useAuth } from "../../hooks/useAuth";
 
 function Mouvements() {
+  const { user } = useAuth();
   const [mouvements, setMouvements] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [filterType, setFilterType] = useState("tous");
   const [dateFilter, setDateFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [formData, setFormData] = useState({
     id_produit: "",
     id_entrepot: "",
@@ -24,14 +38,47 @@ function Mouvements() {
     motif: "",
   });
 
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      if (!user?.id_entreprise) {
+        throw new Error("Informations d'entreprise non disponibles");
+      }
+
+      const [mouvementsData, productsData, warehousesData] = await Promise.all([
+        movements.getAll(user.id_entreprise),
+        productsService.getAll(user.id_entreprise),
+        warehousesService.getAll(user.id_entreprise),
+      ]);
+
+      if (mouvementsData.error) throw mouvementsData.error;
+      if (productsData.error) throw productsData.error;
+      if (warehousesData.error) throw warehousesData.error;
+
+      setMouvements(mouvementsData.data || []);
+      setProducts(productsData.data || []);
+      setWarehouses(warehousesData.data || []);
+    } catch (err) {
+      setError(err.message);
+      console.error("Erreur lors du chargement des données:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id_entreprise]);
+
   useEffect(() => {
-    setMouvements([]);
-  }, []);
+    loadData();
+  }, [loadData]);
 
   const filteredMouvements = mouvements.filter((mouvement) => {
     const matchesSearch =
-      mouvement.produit_nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      mouvement.motif?.toLowerCase().includes(searchTerm.toLowerCase());
+      mouvement.produits?.designation
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      mouvement.motif?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      mouvement.produits?.sku?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType =
       filterType === "tous" || mouvement.type_mvt === filterType.toUpperCase();
     const matchesDate =
@@ -41,20 +88,66 @@ function Mouvements() {
     return matchesSearch && matchesType && matchesDate;
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const newMouvement = {
-      id_mvt: `temp_${mouvements.length + 1}`,
-      ref: mouvements.length + 1, // Numérotation automatique
-      ...formData,
-      quantite: parseInt(formData.quantite),
-      date_mvt: new Date().toISOString(),
-      produit_nom: "Produit sélectionné",
-      entrepot_nom: "Entrepôt sélectionné",
-      user_nom: "Utilisateur actuel",
-    };
-    setMouvements([newMouvement, ...mouvements]);
-    resetForm();
+
+    try {
+      setError("");
+      setSuccess("");
+
+      if (!user?.id_entreprise) {
+        throw new Error("Informations d'entreprise non disponibles");
+      }
+
+      // Validation des champs
+      if (
+        !formData.id_produit ||
+        !formData.id_entrepot ||
+        !formData.quantite ||
+        !formData.motif
+      ) {
+        throw new Error("Veuillez remplir tous les champs obligatoires");
+      }
+
+      const quantity = parseInt(formData.quantite);
+      if (isNaN(quantity) || quantity <= 0) {
+        throw new Error("La quantité doit être un nombre positif");
+      }
+
+      // Vérifier si le mouvement est possible (stock suffisant pour les sorties)
+      const validation = await movements.validateMovement(
+        formData.id_produit,
+        formData.id_entrepot,
+        quantity,
+        formData.type_mvt,
+      );
+
+      if (!validation.valid) {
+        throw new Error(validation.message);
+      }
+
+      // Créer le mouvement
+      const movementData = {
+        ...formData,
+        quantite: quantity,
+        id_user: user.id_user,
+        id_entreprise: user.id_entreprise,
+      };
+
+      const { error } = await movements.create(movementData);
+
+      if (error) throw error;
+
+      setSuccess("Mouvement de stock enregistré avec succès");
+      await loadData(); // Recharger les données
+      resetForm();
+
+      // Masquer le message de succès après 3 secondes
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err.message);
+      console.error("Erreur lors de l'enregistrement du mouvement:", err);
+    }
   };
 
   const resetForm = () => {
@@ -66,6 +159,7 @@ function Mouvements() {
       motif: "",
     });
     setShowAddModal(false);
+    setError("");
   };
 
   const getTypeIcon = (type) => {
@@ -88,6 +182,25 @@ function Mouvements() {
 
   return (
     <div className="space-y-6">
+      {/* Messages d'alerte */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            <span className="text-red-800">{error}</span>
+          </div>
+        </div>
+      )}
+
+      {success && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <span className="text-green-800">{success}</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -146,117 +259,137 @@ function Mouvements() {
       </div>
 
       {/* Mouvements Table */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  REF
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Produit
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Quantité
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Stock
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Motif
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Référence
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Utilisateur
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredMouvements.length === 0 ? (
+      {loading ? (
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            <span className="ml-2 text-gray-600">
+              Chargement des mouvements...
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <td
-                    colSpan="9"
-                    className="px-6 py-12 text-center text-gray-500"
-                  >
-                    <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>Aucun mouvement trouvé</p>
-                  </td>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    REF
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Produit
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Quantité
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Stock
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Motif
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Référence
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Utilisateur
+                  </th>
                 </tr>
-              ) : (
-                filteredMouvements.map((mouvement) => (
-                  <tr key={mouvement.id_mvt} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      #{mouvement.ref}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm">
-                        <div className="text-gray-900">{mouvement.date}</div>
-                        <div className="text-gray-500">{mouvement.heure}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(mouvement.type_mvt)}`}
-                      >
-                        {getTypeIcon(mouvement.type_mvt)}
-                        {mouvement.type_mvt === "ENTREE"
-                          ? "Entrée"
-                          : mouvement.type_mvt === "SORTIE"
-                            ? "Sortie"
-                            : "Ajustement"}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {mouvement.produit_nom}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {mouvement.id_mvt?.slice(0, 8) || "-"}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div
-                        className={`text-sm font-medium ${
-                          mouvement.type_mvt === "ENTREE"
-                            ? "text-green-600"
-                            : "text-red-600"
-                        }`}
-                      >
-                        {mouvement.type_mvt === "ENTREE" ? "+" : "-"}
-                        {mouvement.quantite}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {mouvement.stock}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {mouvement.motif || "-"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {mouvement.id_mvt?.slice(0, 8) || "-"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-gray-400" />
-                        {mouvement.user_nom}
-                      </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredMouvements.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan="9"
+                      className="px-6 py-12 text-center text-gray-500"
+                    >
+                      <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>Aucun mouvement trouvé</p>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredMouvements.map((mouvement) => (
+                    <tr key={mouvement.id_mvt} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        #{mouvement.ref}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm">
+                          <div className="text-gray-900">
+                            {new Date(mouvement.date_mvt).toLocaleDateString(
+                              "fr-FR",
+                            )}
+                          </div>
+                          <div className="text-gray-500">
+                            {new Date(mouvement.date_mvt).toLocaleTimeString(
+                              "fr-FR",
+                              { hour: "2-digit", minute: "2-digit" },
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(mouvement.type_mvt)}`}
+                        >
+                          {getTypeIcon(mouvement.type_mvt)}
+                          {mouvement.type_mvt === "ENTREE"
+                            ? "Entrée"
+                            : mouvement.type_mvt === "SORTIE"
+                              ? "Sortie"
+                              : "Ajustement"}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {mouvement.produits?.designation || "Produit inconnu"}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {mouvement.produits?.sku || "-"}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div
+                          className={`text-sm font-medium ${
+                            mouvement.type_mvt === "ENTREE"
+                              ? "text-green-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {mouvement.type_mvt === "ENTREE" ? "+" : "-"}
+                          {mouvement.quantite}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {mouvement.stock}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {mouvement.motif || "-"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {mouvement.id_mvt?.slice(0, 8) || "-"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-gray-400" />
+                          {mouvement.utilisateurs?.nom || "Utilisateur inconnu"}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Add Movement Modal */}
       {showAddModal && (
@@ -273,14 +406,15 @@ function Mouvements() {
                   </label>
                   <select
                     required
-                    value={formData.type}
+                    value={formData.type_mvt}
                     onChange={(e) =>
-                      setFormData({ ...formData, type: e.target.value })
+                      setFormData({ ...formData, type_mvt: e.target.value })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   >
-                    <option value="entree">Entrée de stock</option>
-                    <option value="sortie">Sortie de stock</option>
+                    <option value="ENTREE">Entrée de stock</option>
+                    <option value="SORTIE">Sortie de stock</option>
+                    <option value="AJUSTEMENT">Ajustement de stock</option>
                   </select>
                 </div>
 
@@ -290,15 +424,21 @@ function Mouvements() {
                   </label>
                   <select
                     required
-                    value={formData.produit_id}
+                    value={formData.id_produit}
                     onChange={(e) =>
-                      setFormData({ ...formData, produit_id: e.target.value })
+                      setFormData({ ...formData, id_produit: e.target.value })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   >
                     <option value="">Sélectionner un produit</option>
-                    <option value="1">Ordinateur Portable (LP001)</option>
-                    <option value="2">Clavier USB (KB001)</option>
+                    {products.map((product) => (
+                      <option
+                        key={product.id_produit}
+                        value={product.id_produit}
+                      >
+                        {product.designation} ({product.sku})
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -319,6 +459,29 @@ function Mouvements() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Entrepôt *
+                  </label>
+                  <select
+                    required
+                    value={formData.id_entrepot}
+                    onChange={(e) =>
+                      setFormData({ ...formData, id_entrepot: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  >
+                    <option value="">Sélectionner un entrepôt</option>
+                    {warehouses.map((warehouse) => (
+                      <option
+                        key={warehouse.id_entrepot}
+                        value={warehouse.id_entrepot}
+                      >
+                        {warehouse.nom_entrepot}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -337,7 +500,7 @@ function Mouvements() {
                 />
               </div>
 
-              {formData.type === "entree" ? (
+              {formData.type_mvt === "ENTREE" ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Fournisseur
@@ -357,7 +520,7 @@ function Mouvements() {
                     <option value="2">GlobalComponents</option>
                   </select>
                 </div>
-              ) : (
+              ) : formData.type_mvt === "SORTIE" ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Client
@@ -374,7 +537,7 @@ function Mouvements() {
                     <option value="2">Marie Martin</option>
                   </select>
                 </div>
-              )}
+              ) : null}
 
               <div className="flex justify-end gap-3 pt-4">
                 <button

@@ -33,6 +33,18 @@ CREATE TABLE public.commandes (
   CONSTRAINT commandes_new_id_fournisseur_fkey FOREIGN KEY (id_fournisseur) REFERENCES public.fournisseurs(id_fournisseur),
   CONSTRAINT commandes_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );
+CREATE TABLE public.details_livraison (
+  id_detail uuid NOT NULL DEFAULT gen_random_uuid(),
+  quantite_livree integer NOT NULL,
+  quantite_retournee integer DEFAULT 0,
+  id_livraison uuid NOT NULL,
+  id_produit uuid NOT NULL,
+  id_entreprise uuid NOT NULL,
+  CONSTRAINT details_livraison_pkey PRIMARY KEY (id_detail),
+  CONSTRAINT details_livraison_id_livraison_fkey FOREIGN KEY (id_livraison) REFERENCES public.livraisons(id_livraison),
+  CONSTRAINT details_livraison_id_produit_fkey FOREIGN KEY (id_produit) REFERENCES public.produits(id_produit),
+  CONSTRAINT details_livraison_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
+);
 CREATE TABLE public.entrepots (
   id_entrepot uuid NOT NULL DEFAULT gen_random_uuid(),
   nom_entrepot character varying NOT NULL,
@@ -86,6 +98,40 @@ CREATE TABLE public.lignes_commande (
   CONSTRAINT lignes_commande_new_id_commande_fkey FOREIGN KEY (id_commande) REFERENCES public.commandes(id_commande),
   CONSTRAINT lignes_commande_new_id_produit_fkey FOREIGN KEY (id_produit) REFERENCES public.produits(id_produit),
   CONSTRAINT lignes_commande_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
+);
+CREATE TABLE public.livraisons (
+  id_livraison uuid NOT NULL DEFAULT gen_random_uuid(),
+  reference character varying,
+  date_livraison timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  statut text DEFAULT 'EN_ATTENTE'::text CHECK (statut = ANY (ARRAY['EN_ATTENTE'::text, 'EN_COURS'::text, 'LIVRE'::text, 'ANNULE'::text])),
+  adresse_livraison text NOT NULL,
+  observations text,
+  id_commande uuid NOT NULL,
+  id_livreur uuid NOT NULL,
+  id_client uuid NOT NULL,
+  id_entreprise uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT livraisons_pkey PRIMARY KEY (id_livraison),
+  CONSTRAINT livraisons_id_commande_fkey FOREIGN KEY (id_commande) REFERENCES public.commandes(id_commande),
+  CONSTRAINT livraisons_id_livreur_fkey FOREIGN KEY (id_livreur) REFERENCES public.livreurs(id_livreur),
+  CONSTRAINT livraisons_id_client_fkey FOREIGN KEY (id_client) REFERENCES public.clients(id_client),
+  CONSTRAINT livraisons_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
+);
+CREATE TABLE public.livreurs (
+  id_livreur uuid NOT NULL DEFAULT gen_random_uuid(),
+  nom character varying NOT NULL,
+  prenom character varying,
+  telephone character varying NOT NULL,
+  email character varying,
+  permis_conduire character varying,
+  vehicule_type character varying,
+  immatriculation character varying,
+  statut text DEFAULT 'ACTIF'::text CHECK (statut = ANY (ARRAY['ACTIF'::text, 'INACTIF'::text])),
+  date_embauche timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  id_entreprise uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT livreurs_pkey PRIMARY KEY (id_livreur),
+  CONSTRAINT livreurs_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );
 CREATE TABLE public.mouvements_stock (
   id_mvt uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -151,6 +197,7 @@ CREATE TABLE public.produits (
   id_entreprise uuid NOT NULL,
   id_entrepot uuid,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  quantite_stock integer DEFAULT 0 CHECK (quantite_stock >= 0),
   CONSTRAINT produits_pkey PRIMARY KEY (id_produit),
   CONSTRAINT produits_new_id_categorie_fkey FOREIGN KEY (id_categorie) REFERENCES public.categories(id_categorie),
   CONSTRAINT produits_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise),
@@ -209,4 +256,15 @@ CREATE TABLE public.utilisateurs (
   CONSTRAINT utilisateurs_pkey PRIMARY KEY (id_user),
   CONSTRAINT utilisateurs_new_id_role_fkey FOREIGN KEY (id_role) REFERENCES public.roles(id_role),
   CONSTRAINT utilisateurs_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
+);
+CREATE TABLE public.parametres_systeme (
+  id_parametre uuid NOT NULL DEFAULT gen_random_uuid(),
+  nom_parametre character varying NOT NULL,
+  valeur_parametre text,
+  description text,
+  id_entreprise uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT parametres_systeme_pkey PRIMARY KEY (id_parametre),
+  CONSTRAINT parametres_systeme_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );

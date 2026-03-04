@@ -10,6 +10,10 @@ import {
   LogOut,
   ChevronDown,
   ChevronRight,
+  FileText,
+  Truck,
+  BarChart3,
+  LayoutDashboard,
 } from "lucide-react";
 
 const Sidebar = ({ isOpen, profile, onLogout }) => {
@@ -21,10 +25,24 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
   const menuStructure = [
     {
       id: "dashboard",
-      icon: TrendingUp,
-      label: "Tableau de bord",
+      icon: LayoutDashboard,
+      label: "Dashboard",
       path: "/dashboard",
       active: location.pathname === "/dashboard",
+    },
+    {
+      id: "livreurs",
+      icon: Truck,
+      label: "Livreurs",
+      path: "/livreurs",
+      active: location.pathname === "/livreurs",
+    },
+    {
+      id: "rapports",
+      icon: FileText,
+      label: "Rapports",
+      path: "/rapports",
+      active: location.pathname === "/rapports",
     },
     {
       id: "stock",
@@ -107,11 +125,6 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
       active: location.pathname.includes("/settings"),
       children: [
         {
-          label: "Entreprise",
-          path: "/settings/entreprise",
-          active: location.pathname === "/settings/entreprise",
-        },
-        {
           label: "Utilisateurs",
           path: "/settings/utilisateurs",
           active: location.pathname === "/settings/utilisateurs",
@@ -182,7 +195,7 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
             />
           ) : null}
           <div
-            className="w-12 h-12 bg-gradient-to-br from-gray-900 to-gray-700 rounded-xl flex items-center justify-center shadow-lg"
+            className="w-12 h-12 bg-linear-to-br from-gray-900 to-gray-700 rounded-xl flex items-center justify-center shadow-lg"
             style={{ display: companyLogoSrc ? "none" : "flex" }}
           >
             <Building2 className="w-6 h-6 text-white" />
@@ -216,7 +229,7 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <item.icon className="w-5 h-5 flex-shrink-0" />
+                    <item.icon className="w-5 h-5 shrink-0" />
                     <span className="font-medium">{item.label}</span>
                   </div>
                   {expandedSections[item.id] ? (
@@ -256,7 +269,7 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
                     : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                 }`}
               >
-                <item.icon className="w-5 h-5 flex-shrink-0" />
+                <item.icon className="w-5 h-5 shrink-0" />
                 <span className="font-medium">{item.label}</span>
               </button>
             )}

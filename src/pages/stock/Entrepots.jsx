@@ -332,7 +332,7 @@ function Entrepots() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex items-start gap-1">
-                          <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                          <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
                           <span className="line-clamp-2">
                             {entrepot.adresse || "Adresse non spécifiée"}
                           </span>
