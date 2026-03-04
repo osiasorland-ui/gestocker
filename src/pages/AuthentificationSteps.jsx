@@ -16,7 +16,6 @@ import {
   Image,
 } from "lucide-react";
 import AddressSelector from "../components/AddressSelector";
-import OTPVerification from "../components/auth/OTPVerification";
 
 // Étape 1: Informations personnelles
 export const Step1PersonalInfo = ({
@@ -447,19 +446,4 @@ export const Step3Logo = ({
       </div>
     </div>
   </div>
-);
-
-// Étape 4: Vérification OTP
-export const Step4OTPVerification = ({
-  email,
-  onVerificationSuccess,
-  onBack,
-  isLoading = false,
-}) => (
-  <OTPVerification
-    email={email}
-    onVerificationSuccess={onVerificationSuccess}
-    onBack={onBack}
-    isLoading={isLoading}
-  />
 );

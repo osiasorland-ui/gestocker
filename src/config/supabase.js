@@ -118,23 +118,6 @@ export const auth = {
   // Inscription
   signUp: async (email, password, metadata = {}) => {
     try {
-      // Vérifier si l'email a été vérifié via OTP
-      const { data: otpCheck, error: otpError } = await supabase
-        .from("otp_codes")
-        .select("is_used")
-        .eq("email", email)
-        .eq("is_used", true)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      if (otpError || !otpCheck) {
-        return {
-          data: null,
-          error: "EMAIL_NOT_VERIFIED",
-        };
-      }
-
       // Étape 1: Créer l'entreprise directement
       const { data: entrepriseData, error: entrepriseError } = await supabase
         .from("entreprises")
@@ -276,14 +259,6 @@ export const auth = {
   signOut: async () => {
     const { error } = await supabase.auth.signOut();
     return { error };
-  },
-
-  // Réinitialisation du mot de passe
-  resetPassword: async (email) => {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    return { data, error };
   },
 
   // Mettre à jour le mot de passe

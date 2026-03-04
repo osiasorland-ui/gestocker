@@ -196,20 +196,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const resetPassword = async (email) => {
-    try {
-      const { data, error } = await auth.resetPassword(email);
-
-      if (error) {
-        throw error;
-      }
-
-      return { success: true, data };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  };
-
   const updatePassword = async (newPassword) => {
     setLoading(true);
     try {
@@ -292,7 +278,6 @@ export const AuthProvider = ({ children }) => {
     signIn,
     signUp,
     signOut,
-    resetPassword,
     updatePassword,
     updateProfile,
 
