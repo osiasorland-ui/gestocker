@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { motion } from "framer-motion";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react";
@@ -10,15 +9,16 @@ const LoginForm = ({ onToggleMode }) => {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
+    rememberMe: false,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: type === "checkbox" ? checked : value,
     }));
     if (error) setError("");
   };
@@ -32,7 +32,11 @@ const LoginForm = ({ onToggleMode }) => {
       return;
     }
 
-    const result = await signIn(formData.email, formData.password);
+    const result = await signIn(
+      formData.email,
+      formData.password,
+      formData.rememberMe,
+    );
 
     if (result.success) {
       // Rediriger vers le dashboard après connexion réussie
@@ -43,21 +47,11 @@ const LoginForm = ({ onToggleMode }) => {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
-      className="w-full max-w-md mx-auto space-y-6"
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-        className="text-center mb-8"
-      >
+    <div className="w-full max-w-md mx-auto space-y-6">
+      <div className="text-center mb-8">
         <h2 className="text-3xl font-bold text-black mb-2">Connexion</h2>
         <p className="text-gray-600">Accédez à votre espace de gestion</p>
-      </motion.div>
+      </div>
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
@@ -66,7 +60,7 @@ const LoginForm = ({ onToggleMode }) => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off">
         <div>
           <label
             htmlFor="email"
@@ -86,6 +80,10 @@ const LoginForm = ({ onToggleMode }) => {
               onChange={handleChange}
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-colors"
               placeholder="vous@exemple.com"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
               required
             />
           </div>
@@ -110,6 +108,10 @@ const LoginForm = ({ onToggleMode }) => {
               onChange={handleChange}
               className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-colors"
               placeholder="••••••••"
+              autoComplete="new-password"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
               required
             />
             <button
@@ -130,23 +132,31 @@ const LoginForm = ({ onToggleMode }) => {
           <div className="flex items-center">
             <input
               id="remember"
+              name="rememberMe"
               type="checkbox"
+              checked={formData.rememberMe}
+              onChange={handleChange}
               className="h-4 w-4 text-gray-900 focus:ring-gray-900 border-gray-300 rounded"
             />
             <label
               htmlFor="remember"
               className="ml-2 block text-sm text-gray-700"
             >
-              Se souvenir de moi
+              Maintenir la session (expire à la fermeture)
             </label>
           </div>
-          <button
-            type="button"
-            onClick={() => onToggleMode("reset")}
-            className="text-sm text-gray-600 hover:text-gray-800"
-          >
-            Mot de passe oublié?
-          </button>
+          <div className="text-sm">
+            <a
+              href="#"
+              className="font-medium text-gray-900 hover:text-gray-700"
+              onClick={(e) => {
+                e.preventDefault();
+                // TODO: Implémenter la réinitialisation du mot de passe
+              }}
+            >
+              Mot de passe oublié?
+            </a>
+          </div>
         </div>
 
         <button
@@ -195,7 +205,7 @@ const LoginForm = ({ onToggleMode }) => {
           </button>
         </p>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

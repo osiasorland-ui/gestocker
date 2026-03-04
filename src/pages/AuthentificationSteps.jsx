@@ -16,6 +16,7 @@ import {
   Image,
 } from "lucide-react";
 import AddressSelector from "../components/AddressSelector";
+import OTPVerification from "../components/auth/OTPVerification";
 
 // Étape 1: Informations personnelles
 export const Step1PersonalInfo = ({
@@ -320,7 +321,6 @@ export const Step2CompanyInfo = ({ register, errors, setValue }) => (
 
 // Étape 3: Logo de l'entreprise
 export const Step3Logo = ({
-  register,
   errors,
   handleLogoUpload,
   logoFile,
@@ -402,7 +402,7 @@ export const Step3Logo = ({
         </div>
       </div>
 
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
+      <div className="bg-linear-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
         <div className="flex items-start space-x-3">
           <div className="shrink-0">
             <div className="inline-flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
@@ -447,4 +447,19 @@ export const Step3Logo = ({
       </div>
     </div>
   </div>
+);
+
+// Étape 4: Vérification OTP
+export const Step4OTPVerification = ({
+  email,
+  onVerificationSuccess,
+  onBack,
+  isLoading = false,
+}) => (
+  <OTPVerification
+    email={email}
+    onVerificationSuccess={onVerificationSuccess}
+    onBack={onBack}
+    isLoading={isLoading}
+  />
 );

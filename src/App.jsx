@@ -6,8 +6,9 @@ import {
 } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth.jsx";
 import Authentification from "./pages/Authentification";
-import Dashboard from "./pages/Dashboard";
+import DashboardWrapper from "./pages/DashboardWrapper";
 import ProtectedRoute from "./components/ProtectedRoute";
+import TestOTP from "./pages/TestOTP";
 
 function App() {
   return (
@@ -16,11 +17,12 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/auth" replace />} />
           <Route path="/auth" element={<Authentification />} />
+          <Route path="/test-otp" element={<TestOTP />} />
           <Route
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <DashboardWrapper />
               </ProtectedRoute>
             }
           />

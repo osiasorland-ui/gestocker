@@ -6,17 +6,6 @@ const Navbar = () => {
   const { user, profile, signOut } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
-  // Debug complet des données
-  React.useEffect(() => {
-    console.log("Navbar - Données complètes :", {
-      user,
-      profile,
-      entreprises: profile?.entreprises,
-      logoPath: profile?.entreprises?.logo_path,
-      nomCommercial: profile?.entreprises?.nom_commercial,
-    });
-  }, [user, profile]);
-
   const handleSignOut = async () => {
     await signOut();
   };
@@ -38,34 +27,26 @@ const Navbar = () => {
   // Obtenir la source du logo (base64 ou URL)
   const getLogoSrc = () => {
     const logoPath = profile?.entreprises?.logo_path;
-    console.log("Navbar - logoPath brut:", logoPath); // Debug
-    console.log("Navbar - profile complet:", profile); // Debug
 
     if (!logoPath) {
-      console.log("Navbar: Pas de logoPath"); // Debug
       return null;
     }
 
     // Si c'est déjà une URL ou commence par http, utiliser directement
     if (logoPath.startsWith("http") || logoPath.startsWith("/")) {
-      console.log("Navbar: Logo URL détecté"); // Debug
       return logoPath;
     }
 
     // Si c'est du base64, utiliser directement
     if (logoPath.startsWith("data:image")) {
-      console.log("Navbar: Logo base64 complet détecté"); // Debug
       return logoPath;
     }
 
     // Sinon, considérer que c'est du base64 sans préfixe
     if (logoPath.length > 100) {
-      // Probablement du base64
-      console.log("Navbar: Logo base64 brut détecté, ajout du préfixe"); // Debug
       return `data:image/png;base64,${logoPath}`;
     }
 
-    console.log("Navbar: Logo traité comme URL simple"); // Debug
     return logoPath;
   };
 
@@ -73,7 +54,7 @@ const Navbar = () => {
   const initial = getInitial();
 
   return (
-    <nav className="bg-white shadow-sm border-b border-gray-200">
+    <nav className="bg-white border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo ou initiale */}
@@ -92,7 +73,7 @@ const Navbar = () => {
             ) : null}
             {/* Fallback: initiale si le logo ne se charge pas */}
             <div
-              className="h-8 w-8 bg-gray-900 rounded-lg flex items-center justify-center"
+              className="h-8 w-8 bg-black rounded-lg flex items-center justify-center"
               style={{ display: logoSrc ? "none" : "flex" }}
             >
               <span className="text-white font-semibold text-sm">
@@ -112,7 +93,7 @@ const Navbar = () => {
               </span>
               <button
                 onClick={handleSignOut}
-                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-900 hover:text-white hover:border-gray-900 transition-colors"
               >
                 <LogOut className="w-4 h-4 mr-2" />
                 Déconnexion
@@ -144,7 +125,7 @@ const Navbar = () => {
               </div>
               <button
                 onClick={handleSignOut}
-                className="w-full text-left px-3 py-2 text-base font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                className="w-full text-left px-3 py-2 text-base font-medium rounded-md text-gray-700 bg-white border border-gray-300 hover:bg-gray-900 hover:text-white hover:border-gray-900 transition-colors"
               >
                 <LogOut className="w-4 h-4 mr-2 inline" />
                 Déconnexion

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import Lottie from "lottie-react";
 import {
   Building2,
@@ -17,29 +17,11 @@ import {
   Step1PersonalInfo,
   Step2CompanyInfo,
   Step3Logo,
+  Step4OTPVerification,
 } from "./AuthentificationSteps";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-
-// Animation variants
-const pageVariants = {
-  initial: { opacity: 0, y: 20 },
-  in: { opacity: 1, y: 0 },
-  out: { opacity: 0, y: -20 },
-};
-
-const pageTransition = {
-  type: "tween",
-  ease: "anticipate",
-  duration: 0.3,
-};
-
-const stepVariants = {
-  hidden: { opacity: 0, x: 50 },
-  visible: { opacity: 1, x: 0 },
-  exit: { opacity: 0, x: -50 },
-};
 
 // Schéma de validation pour le formulaire d'inscription
 const registerSchema = yup.object().shape({
@@ -115,7 +97,7 @@ const registerSchema = yup.object().shape({
 
 function Authentification() {
   const [currentMode, setCurrentMode] = useState("login"); // 'login', 'register', 'reset'
-  const [currentStep, setCurrentStep] = useState(1); // 1, 2, 3 pour l'inscription
+  const [currentStep, setCurrentStep] = useState(1); // 1, 2, 3, 4 pour l'inscription
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -123,6 +105,7 @@ function Authentification() {
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState("");
   const [lottieAnimation, setLottieAnimation] = useState(null);
+  const [registrationData, setRegistrationData] = useState(null); // Stocker les données d'inscription
 
   const navigate = useNavigate();
   const { isAuthenticated, signUp } = useAuth();
@@ -134,7 +117,7 @@ function Authentification() {
       .then((data) => {
         setLottieAnimation(data);
       })
-      .catch((error) => {
+      .catch(() => {
         // Erreur silencieuse pour le chargement de l'animation
       });
   }, []);
@@ -147,6 +130,7 @@ function Authentification() {
     setError,
     clearErrors,
     setValue,
+    getValues,
   } = useForm({
     resolver: yupResolver(registerSchema),
     mode: "onChange",
@@ -190,12 +174,91 @@ function Authentification() {
 
     const isStepValid = await trigger(fieldsToValidate);
     if (isStepValid) {
-      setCurrentStep(currentStep + 1);
+      if (currentStep === 3) {
+        // Étape 3 -> Passer à l'OTP après validation des données
+        const formData = getValues();
+        setRegistrationData(formData);
+        setCurrentStep(4);
+      } else {
+        setCurrentStep(currentStep + 1);
+      }
     }
   };
 
   const handlePreviousStep = () => {
-    setCurrentStep(currentStep - 1);
+    if (currentStep === 4) {
+      // Revenir à l'étape 3 depuis l'OTP
+      setCurrentStep(3);
+    } else {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  // Gestionnaire de succès de l'OTP
+  const handleOTPSuccess = async () => {
+    setIsLoading(true);
+    setSubmitError("");
+
+    try {
+      if (!registrationData) {
+        setSubmitError("Données d'inscription manquantes");
+        return;
+      }
+
+      // Convertir le logo en base64
+      const reader = new FileReader();
+      const logoBase64 = await new Promise((resolve) => {
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(logoFile);
+      });
+
+      // Créer le compte après validation OTP
+      const result = await signUp(
+        registrationData.email,
+        registrationData.mot_de_passe,
+        {
+          nom: registrationData.nom,
+          nom_entreprise: registrationData.nom_entreprise,
+          raison_sociale: registrationData.raison_sociale,
+          ifu: registrationData.ifu,
+          registre_commerce: registrationData.registre_commerce,
+          adresse_siege: registrationData.adresse_siege,
+          telephone_entreprise: registrationData.telephone_entreprise,
+          email_entreprise: registrationData.email,
+          logo_base64: logoBase64,
+        },
+      );
+
+      if (!result.error) {
+        // Afficher un message de succès et rediriger
+        setTimeout(() => {
+          navigate("/dashboard");
+        }, 1500);
+      } else {
+        // Gérer les erreurs spécifiques
+        const errorMessage = result.error;
+        if (errorMessage === "IFU_EXISTS") {
+          setSubmitError("Cet IFU est déjà utilisé par une autre entreprise.");
+        } else if (errorMessage === "REGISTRE_EXISTS") {
+          setSubmitError("Ce registre de commerce est déjà utilisé.");
+        } else if (errorMessage === "EMAIL_EXISTS") {
+          setSubmitError("Cet email est déjà utilisé par un autre compte.");
+        } else if (errorMessage === "EMAIL_NOT_VERIFIED") {
+          setSubmitError(
+            "Veuillez d'abord vérifier votre email avec le code OTP avant de créer votre compte.",
+          );
+        } else {
+          setSubmitError(errorMessage);
+        }
+        // Revenir à l'étape 3 en cas d'erreur
+        setCurrentStep(3);
+      }
+    } catch {
+      setSubmitError("Une erreur est survenue lors de la création du compte.");
+      setCurrentStep(3);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePastePassword = (e) => {
@@ -233,11 +296,6 @@ function Authentification() {
     } else {
       console.log("Aucun fichier sélectionné"); // Debug
     }
-  };
-
-  // Gestionnaire pour react-hook-form
-  const handleLogoChange = (event) => {
-    handleLogoUpload(event);
   };
 
   const onSubmit = async (data) => {
@@ -305,7 +363,7 @@ function Authentification() {
           setSubmitError(errorMessage);
         }
       }
-    } catch (error) {
+    } catch {
       setSubmitError("Une erreur est survenue lors de l'inscription.");
     } finally {
       setIsLoading(false);
@@ -316,14 +374,7 @@ function Authentification() {
     switch (currentStep) {
       case 1:
         return (
-          <motion.div
-            key="step1"
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            variants={stepVariants}
-            transition={pageTransition}
-          >
+          <div key="step1">
             <Step1PersonalInfo
               register={register}
               errors={errors}
@@ -333,43 +384,39 @@ function Authentification() {
               setShowConfirmPassword={setShowConfirmPassword}
               handlePastePassword={handlePastePassword}
             />
-          </motion.div>
+          </div>
         );
       case 2:
         return (
-          <motion.div
-            key="step2"
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            variants={stepVariants}
-            transition={pageTransition}
-          >
+          <div key="step2">
             <Step2CompanyInfo
               register={register}
               errors={errors}
               setValue={setValue}
             />
-          </motion.div>
+          </div>
         );
       case 3:
         return (
-          <motion.div
-            key="step3"
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            variants={stepVariants}
-            transition={pageTransition}
-          >
+          <div key="step3">
             <Step3Logo
-              register={register}
               errors={errors}
               logoFile={logoFile}
               logoPreview={logoPreview}
               handleLogoUpload={handleLogoUpload}
             />
-          </motion.div>
+          </div>
+        );
+      case 4:
+        return (
+          <div key="step4">
+            <Step4OTPVerification
+              email={registrationData?.email}
+              onVerificationSuccess={handleOTPSuccess}
+              onBack={handlePreviousStep}
+              isLoading={isLoading}
+            />
+          </div>
         );
       default:
         return null;
@@ -464,27 +511,13 @@ function Authentification() {
               {/* Afficher le formulaire approprié */}
               <AnimatePresence mode="wait">
                 {currentMode === "login" && (
-                  <motion.div
-                    key="login"
-                    initial="initial"
-                    animate="in"
-                    exit="out"
-                    variants={pageVariants}
-                    transition={pageTransition}
-                  >
+                  <div key="login">
                     <LoginForm onToggleMode={handleModeChange} />
-                  </motion.div>
+                  </div>
                 )}
 
                 {currentMode === "register" && (
-                  <motion.div
-                    key="register"
-                    initial="initial"
-                    animate="in"
-                    exit="out"
-                    variants={pageVariants}
-                    transition={pageTransition}
-                  >
+                  <div key="register">
                     <form
                       onSubmit={handleSubmit(onSubmit)}
                       className="space-y-6"
@@ -503,14 +536,14 @@ function Authentification() {
                                 1
                               </span>
                             </div>
-                            <span className="ml-2 text-sm font-medium">
-                              Informations personnelles
+                            <span className="ml-2 text-sm font-medium hidden sm:inline">
+                              Informations
                             </span>
                           </div>
 
                           {/* Séparateur */}
                           <div
-                            className={`w-12 h-0.5 ${currentStep > 1 ? "bg-gray-900" : "bg-gray-200"}`}
+                            className={`w-8 h-0.5 ${currentStep > 1 ? "bg-gray-900" : "bg-gray-200"}`}
                           ></div>
 
                           {/* Étape 2 */}
@@ -524,14 +557,14 @@ function Authentification() {
                                 2
                               </span>
                             </div>
-                            <span className="ml-2 text-sm font-medium">
-                              Informations entreprise
+                            <span className="ml-2 text-sm font-medium hidden sm:inline">
+                              Entreprise
                             </span>
                           </div>
 
                           {/* Séparateur */}
                           <div
-                            className={`w-12 h-0.5 ${currentStep > 2 ? "bg-gray-900" : "bg-gray-200"}`}
+                            className={`w-8 h-0.5 ${currentStep > 2 ? "bg-gray-900" : "bg-gray-200"}`}
                           ></div>
 
                           {/* Étape 3 */}
@@ -545,8 +578,29 @@ function Authentification() {
                                 3
                               </span>
                             </div>
-                            <span className="ml-2 text-sm font-medium">
-                              Résumé
+                            <span className="ml-2 text-sm font-medium hidden sm:inline">
+                              Logo
+                            </span>
+                          </div>
+
+                          {/* Séparateur */}
+                          <div
+                            className={`w-8 h-0.5 ${currentStep > 3 ? "bg-gray-900" : "bg-gray-200"}`}
+                          ></div>
+
+                          {/* Étape 4 */}
+                          <div
+                            className={`flex items-center ${currentStep === 4 ? "text-gray-900" : "text-gray-400"}`}
+                          >
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === 4 ? "bg-gray-900" : "bg-gray-200"}`}
+                            >
+                              <span className="text-white font-semibold text-sm">
+                                4
+                              </span>
+                            </div>
+                            <span className="ml-2 text-sm font-medium hidden sm:inline">
+                              Vérification
                             </span>
                           </div>
                         </div>
@@ -558,83 +612,68 @@ function Authentification() {
 
                       {/* Affichage des erreurs de soumission */}
                       {submitError && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center"
-                        >
+                        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
                           <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
                           <span className="text-red-700 text-sm">
                             {submitError}
                           </span>
-                        </motion.div>
+                        </div>
                       )}
 
                       {/* Navigation entre les étapes */}
                       <div className="flex justify-between items-center pt-4">
                         {currentStep > 1 && (
-                          <motion.button
+                          <button
                             type="button"
                             onClick={handlePreviousStep}
                             className="flex items-center px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
                           >
                             <ArrowLeft className="w-4 h-4 mr-2" />
                             Précédent
-                          </motion.button>
+                          </button>
                         )}
 
                         <div className="flex-1"></div>
 
                         {currentStep < 3 ? (
-                          <motion.button
+                          <button
                             type="button"
                             onClick={handleNextStep}
                             className="flex items-center px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
                           >
                             Suivant
                             <ArrowRight className="w-4 h-4 ml-2" />
-                          </motion.button>
-                        ) : (
+                          </button>
+                        ) : currentStep === 3 ? (
                           <>
                             {/* Debug: Afficher l'état de logoFile */}
-                            {currentStep === 3 && (
-                              <div className="text-xs text-gray-500 mb-2">
-                                Debug: logoFile ={" "}
-                                {logoFile ? logoFile.name : "null"}
-                              </div>
-                            )}
-                            <motion.button
-                              type="submit"
+                            <div className="text-xs text-gray-500 mb-2">
+                              Debug: logoFile ={" "}
+                              {logoFile ? logoFile.name : "null"}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleNextStep}
                               disabled={isLoading || !logoFile}
                               className={`flex items-center px-6 py-2 rounded-lg transition-colors disabled:opacity-50 ${
                                 !logoFile
                                   ? "bg-gray-400 text-gray-200 cursor-not-allowed"
                                   : "bg-gray-900 text-white hover:bg-gray-800"
                               }`}
-                              whileHover={
-                                logoFile && !isLoading ? { scale: 1.05 } : {}
-                              }
-                              whileTap={
-                                logoFile && !isLoading ? { scale: 0.95 } : {}
-                              }
                             >
                               {isLoading ? (
                                 <span className="loading loading-spinner loading-sm mr-2"></span>
                               ) : (
                                 <CheckCircle className="w-4 h-4 mr-2" />
                               )}
-                              Créer mon compte
-                            </motion.button>
+                              Valider et envoyer le code
+                            </button>
                           </>
-                        )}
+                        ) : null}
+                        {/* L'étape 4 (OTP) gère sa propre navigation */}
                       </div>
                     </form>
-                  </motion.div>
+                  </div>
                 )}
               </AnimatePresence>
             </div>

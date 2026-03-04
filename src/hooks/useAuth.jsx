@@ -1,13 +1,62 @@
 import { useState, useEffect } from "react";
 import React from "react";
-import { auth, users } from "../config/supabase";
+import { auth, users, supabase } from "../config/supabase";
 import { AuthContext } from "./authContext";
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState([]);
+
+  // Sauvegarder la session dans sessionStorage uniquement
+  const saveSessionToStorage = (userData, profileData, rememberMe = false) => {
+    // Toujours utiliser sessionStorage - expire à la fermeture du navigateur
+    sessionStorage.setItem("gestocker_user", JSON.stringify(userData));
+    sessionStorage.setItem("gestocker_profile", JSON.stringify(profileData));
+    sessionStorage.setItem("gestocker_permissions", JSON.stringify([]));
+
+    // Le paramètre rememberMe n'est plus utilisé pour le stockage persistant
+    // mais on peut le garder pour d'autres futures fonctionnalités
+    if (rememberMe) {
+      sessionStorage.setItem("gestocker_remember", "true");
+    } else {
+      sessionStorage.setItem("gestocker_remember", "false");
+    }
+  };
+
+  // Charger la session depuis sessionStorage uniquement
+  const loadSessionFromStorage = () => {
+    // Toujours utiliser sessionStorage - pas de persistance entre les sessions
+    try {
+      const userData = sessionStorage.getItem("gestocker_user");
+      const profileData = sessionStorage.getItem("gestocker_profile");
+      const permissionsData = sessionStorage.getItem("gestocker_permissions");
+
+      if (userData && profileData) {
+        setUser(JSON.parse(userData));
+        setProfile(JSON.parse(profileData));
+        setPermissions(JSON.parse(permissionsData) || []);
+        return true;
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement de la session:", error);
+      // Nettoyer sessionStorage en cas d'erreur
+      sessionStorage.removeItem("gestocker_user");
+      sessionStorage.removeItem("gestocker_profile");
+      sessionStorage.removeItem("gestocker_permissions");
+      sessionStorage.removeItem("gestocker_remember");
+    }
+    return false;
+  };
+
+  // Nettoyer la session
+  const clearSessionStorage = () => {
+    sessionStorage.removeItem("gestocker_user");
+    sessionStorage.removeItem("gestocker_profile");
+    sessionStorage.removeItem("gestocker_permissions");
+    sessionStorage.removeItem("gestocker_remember");
+  };
 
   // Charger les données utilisateur complètes
   const loadUserProfile = async (userId) => {
@@ -33,13 +82,31 @@ export const AuthProvider = ({ children }) => {
           setPermissions(perms);
         }
       }
-    } catch (error) {}
+    } catch (error) {
+      console.error("Erreur dans loadUserProfile:", error);
+    }
   };
 
   // Initialiser l'authentification
   useEffect(() => {
     const initializeAuth = async () => {
-      // Plus de vérification localStorage - démarrage frais
+      setLoading(true);
+
+      // Essayer de charger la session depuis le stockage
+      const hasStoredSession = loadSessionFromStorage();
+
+      if (!hasStoredSession) {
+        // Vérifier la session Supabase
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.user) {
+          // Charger le profil utilisateur
+          await loadUserProfile(session.user.id);
+        }
+      }
+
       setLoading(false);
     };
 
@@ -47,7 +114,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Fonctions d'authentification
-  const signIn = async (email, password) => {
+  const signIn = async (email, password, rememberMe = false) => {
     setLoading(true);
     try {
       const { data, error } = await auth.signIn(email, password);
@@ -64,6 +131,10 @@ export const AuthProvider = ({ children }) => {
         // Utiliser id_user depuis notre table ou id depuis Supabase Auth
         const userId = data.user.id_user || data.user.id;
         await loadUserProfile(userId);
+
+        // Sauvegarder la session
+        const profileData = await users.getProfile(userId);
+        saveSessionToStorage(data.user, profileData.data, rememberMe);
       }
 
       return { success: true, data };
@@ -111,10 +182,11 @@ export const AuthProvider = ({ children }) => {
         throw error;
       }
 
-      // Nettoyer l'état uniquement
+      // Nettoyer l'état et le stockage
       setUser(null);
       setProfile(null);
       setPermissions([]);
+      clearSessionStorage();
 
       return { success: true };
     } catch (error) {
