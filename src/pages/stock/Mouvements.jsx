@@ -10,13 +10,20 @@ import {
   User,
   AlertCircle,
   CheckCircle,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import {
   movements,
   products as productsService,
   warehouses as warehousesService,
+  stocks,
+  clients,
+  fournisseurs,
 } from "../../config/supabase";
 import { useAuth } from "../../hooks/useAuthHook.js";
+import { useNotification } from "../../hooks/useNotification";
+import Notification from "../../components/Notification";
 
 // Import des composants UI
 import Card, {
@@ -37,14 +44,24 @@ import Loader, {
 
 function Mouvements() {
   const { user } = useAuth();
+  const { showSuccess, showError } = useNotification();
   const [mouvements, setMouvements] = useState([]);
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [stats, setStats] = useState({
+    totalEntrees: 0,
+    totalSorties: 0,
+    totalAjustements: 0,
+    nombreMouvements: 0,
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [filterType, setFilterType] = useState("tous");
   const [dateFilter, setDateFilter] = useState("");
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [formData, setFormData] = useState({
@@ -53,6 +70,8 @@ function Mouvements() {
     type_mvt: "ENTREE",
     quantite: "",
     motif: "",
+    fournisseur_id: "",
+    client_id: "",
   });
 
   const loadData = useCallback(async () => {
@@ -64,19 +83,42 @@ function Mouvements() {
         throw new Error("Informations d'entreprise non disponibles");
       }
 
-      const [mouvementsData, productsData, warehousesData] = await Promise.all([
+      const [
+        mouvementsData,
+        productsData,
+        warehousesData,
+        suppliersData,
+        customersData,
+        statsData,
+      ] = await Promise.all([
         movements.getAll(user.id_entreprise),
         productsService.getAll(user.id_entreprise),
         warehousesService.getAll(user.id_entreprise),
+        fournisseurs.getAll(user.id_entreprise),
+        clients.getAll(user.id_entreprise),
+        movements.getStats(user.id_entreprise, "month"),
       ]);
 
       if (mouvementsData.error) throw mouvementsData.error;
       if (productsData.error) throw productsData.error;
       if (warehousesData.error) throw warehousesData.error;
+      if (suppliersData.error) throw suppliersData.error;
+      if (customersData.error) throw customersData.error;
+      if (statsData.error) throw statsData.error;
 
       setMouvements(mouvementsData.data || []);
       setProducts(productsData.data || []);
       setWarehouses(warehousesData.data || []);
+      setSuppliers(suppliersData.data || []);
+      setCustomers(customersData.data || []);
+      setStats(
+        statsData.data || {
+          totalEntrees: 0,
+          totalSorties: 0,
+          totalAjustements: 0,
+          nombreMouvements: 0,
+        },
+      );
     } catch (err) {
       setError(err.message);
       console.error("Erreur lors du chargement des données:", err);
@@ -109,6 +151,7 @@ function Mouvements() {
     e.preventDefault();
 
     try {
+      setSubmitting(true);
       setError("");
       setSuccess("");
 
@@ -131,16 +174,36 @@ function Mouvements() {
         throw new Error("La quantité doit être un nombre positif");
       }
 
-      // Vérifier si le mouvement est possible (stock suffisant pour les sorties)
-      const validation = await movements.validateMovement(
-        formData.id_produit,
-        formData.id_entrepot,
-        quantity,
-        formData.type_mvt,
-      );
+      // Validation supplémentaire selon le type
+      if (formData.type_mvt === "SORTIE") {
+        const validation = await movements.validateMovement(
+          formData.id_produit,
+          formData.id_entrepot,
+          quantity,
+          formData.type_mvt,
+        );
 
-      if (!validation.valid) {
-        throw new Error(validation.message);
+        if (!validation.valid) {
+          throw new Error(validation.message);
+        }
+      }
+
+      // Vérifier les seuils d'alerte pour les sorties
+      if (formData.type_mvt === "SORTIE") {
+        const stockCheck = await stocks.getByProductAndWarehouse(
+          formData.id_produit,
+          formData.id_entrepot,
+        );
+
+        if (
+          stockCheck.data &&
+          stockCheck.data.quantite_disponible - quantity <=
+            stockCheck.data.seuil_alerte
+        ) {
+          console.warn(
+            `⚠️ Alerte de seuil de stock pour le produit ${stockCheck.data.produits?.designation}`,
+          );
+        }
       }
 
       // Créer le mouvement
@@ -149,21 +212,21 @@ function Mouvements() {
         quantite: quantity,
         id_user: user.id_user,
         id_entreprise: user.id_entreprise,
+        ref: await movements.generateReference(user.id_entreprise),
       };
 
       const { error } = await movements.create(movementData);
 
       if (error) throw error;
 
-      setSuccess("Mouvement de stock enregistré avec succès");
+      showSuccess("Mouvement de stock enregistré avec succès");
       await loadData(); // Recharger les données
       resetForm();
-
-      // Masquer le message de succès après 3 secondes
-      setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.message);
+      showError(err.message || "Erreur lors de l'enregistrement du mouvement");
       console.error("Erreur lors de l'enregistrement du mouvement:", err);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -174,6 +237,8 @@ function Mouvements() {
       type_mvt: "ENTREE",
       quantite: "",
       motif: "",
+      fournisseur_id: "",
+      client_id: "",
     });
     setShowAddModal(false);
     setError("");
@@ -228,13 +293,80 @@ function Mouvements() {
             Suivez les entrées et sorties de produits
           </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nouveau mouvement
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nouveau mouvement
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-green-100 rounded-full">
+              <TrendingUp className="h-6 w-6 text-green-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">
+                Entrées ce mois
+              </p>
+              <p className="text-2xl font-bold text-gray-900">
+                {stats.totalEntrees}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-red-100 rounded-full">
+              <TrendingDown className="h-6 w-6 text-red-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">
+                Sorties ce mois
+              </p>
+              <p className="text-2xl font-bold text-gray-900">
+                {stats.totalSorties}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-blue-100 rounded-full">
+              <Package className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Ajustements</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {stats.totalAjustements}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-purple-100 rounded-full">
+              <Calendar className="h-6 w-6 text-purple-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">
+                Total mouvements
+              </p>
+              <p className="text-2xl font-bold text-gray-900">
+                {stats.nombreMouvements}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
@@ -530,8 +662,14 @@ function Mouvements() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   >
                     <option value="">Sélectionner un fournisseur</option>
-                    <option value="1">TechSupplier</option>
-                    <option value="2">GlobalComponents</option>
+                    {suppliers.map((supplier) => (
+                      <option
+                        key={supplier.id_fournisseur}
+                        value={supplier.id_fournisseur}
+                      >
+                        {supplier.nom_fournisseur}
+                      </option>
+                    ))}
                   </select>
                 </div>
               ) : formData.type_mvt === "SORTIE" ? (
@@ -547,8 +685,14 @@ function Mouvements() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   >
                     <option value="">Sélectionner un client</option>
-                    <option value="1">Jean Dupont</option>
-                    <option value="2">Marie Martin</option>
+                    {customers.map((customer) => (
+                      <option
+                        key={customer.id_client}
+                        value={customer.id_client}
+                      >
+                        {customer.nom} {customer.prenom}
+                      </option>
+                    ))}
                   </select>
                 </div>
               ) : null}
@@ -557,15 +701,24 @@ function Mouvements() {
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={submitting}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Enregistrer
+                  {submitting ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Enregistrement...
+                    </div>
+                  ) : (
+                    "Enregistrer"
+                  )}
                 </button>
               </div>
             </form>

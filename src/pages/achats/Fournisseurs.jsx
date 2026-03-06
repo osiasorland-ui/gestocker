@@ -501,28 +501,39 @@ function Fournisseurs() {
               <div className="text-center py-12">
                 <Building className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                 <p className="text-gray-500">Aucun fournisseur trouvé</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  {searchTerm
+                    ? "Essayez une autre recherche"
+                    : "Commencez par ajouter un fournisseur"}
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        REF
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Fournisseur
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Contact
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Adresse
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Conditions
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Conditions paiement
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Délai livraison
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Évaluation
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -533,67 +544,70 @@ function Fournisseurs() {
                         key={fournisseur.id_fournisseur}
                         className="hover:bg-gray-50"
                       >
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-4 py-2 whitespace-nowrap text-center">
+                          <div className="text-xs font-medium text-gray-900">
+                            {`FOUR${String(fournisseursList.indexOf(fournisseur) + 1).padStart(6, "0")}`}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
-                              <Building className="w-5 h-5 text-gray-600" />
+                            <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center mr-2">
+                              <Building className="w-4 h-4 text-gray-600" />
                             </div>
                             <div>
-                              <div className="text-sm font-medium text-gray-900">
+                              <div className="text-xs font-medium text-gray-900">
                                 {fournisseur.nom_fournisseur}
                               </div>
-                              <div className="text-sm text-gray-500">
+                              <div className="text-xs text-gray-500">
                                 {fournisseur.contact_nom}
                               </div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Phone className="w-4 h-4 text-gray-400" />
-                              <span>{fournisseur.contact_telephone}</span>
+                        <td className="px-4 py-2 whitespace-nowrap">
+                          <div className="text-xs text-gray-900">
+                            <div className="flex items-center gap-1 mb-1">
+                              <Phone className="w-3 h-3 text-gray-400" />
+                              <span className="text-xs">
+                                {fournisseur.contact_telephone}
+                              </span>
                             </div>
                             {fournisseur.contact_email && (
-                              <div className="flex items-center gap-2">
-                                <Mail className="w-4 h-4 text-gray-400" />
-                                <span className="text-gray-600">
+                              <div className="flex items-center gap-1">
+                                <Mail className="w-3 h-3 text-gray-400" />
+                                <span className="text-xs text-gray-600">
                                   {fournisseur.contact_email}
                                 </span>
                               </div>
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900">
-                            <div className="flex items-start gap-2">
-                              <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <td className="px-4 py-2">
+                          <div className="text-xs text-gray-900">
+                            <div className="flex items-start gap-1">
+                              <MapPin className="w-3 h-3 text-gray-400 mt-0.5" />
                               <div>
-                                <div>{fournisseur.adresse}</div>
-                                <div className="text-gray-600">
+                                <div className="text-xs">
+                                  {fournisseur.adresse}
+                                </div>
+                                <div className="text-xs text-gray-600">
                                   {fournisseur.ville}, {fournisseur.pays}
                                 </div>
                               </div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
-                            <div className="text-xs text-gray-500 mb-1">
-                              Paiement:
-                            </div>
-                            <div className="font-medium">
-                              {fournisseur.conditions_paiement}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1 mb-1">
-                              Livraison:
-                            </div>
-                            <div className="font-medium">
-                              {fournisseur.delai_livraison}
-                            </div>
+                        <td className="px-4 py-2 whitespace-nowrap text-center">
+                          <div className="text-xs text-gray-900">
+                            {fournisseur.conditions_paiement || "-"}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-4 py-2 whitespace-nowrap text-center">
+                          <div className="text-xs text-gray-900">
+                            {fournisseur.delai_livraison || "-"}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2 whitespace-nowrap text-center">
                           {fournisseur.rating ? (
                             <StarRating
                               value={fournisseur.rating}
@@ -601,18 +615,18 @@ function Fournisseurs() {
                               size="sm"
                             />
                           ) : (
-                            <span className="text-sm text-gray-400">
+                            <span className="text-xs text-gray-400">
                               Non évalué
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="px-4 py-2 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end gap-1">
                             <button
                               onClick={() => handleEdit(fournisseur)}
                               className="text-blue-600 hover:text-blue-900"
                             >
-                              <Edit2 className="w-4 h-4" />
+                              <Edit2 className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() =>
@@ -620,7 +634,7 @@ function Fournisseurs() {
                               }
                               className="text-red-600 hover:text-red-900"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
                         </td>

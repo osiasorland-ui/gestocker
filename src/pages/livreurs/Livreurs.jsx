@@ -13,6 +13,9 @@ import {
   XCircle,
   UserPlus,
   AlertCircle,
+  Truck,
+  Bike,
+  Package,
 } from "lucide-react";
 import { livreurs } from "../../config/supabase";
 import { useAuth } from "../../hooks/useAuthHook.js";
@@ -51,10 +54,19 @@ const Livreurs = () => {
     prenom: "",
     telephone: "",
     email: "",
-    permis_conduire: "",
     vehicule_type: "",
     immatriculation: "",
     statut: "ACTIF",
+  });
+
+  // État pour les erreurs de validation
+  const [fieldErrors, setFieldErrors] = useState({
+    nom: "",
+    prenom: "",
+    telephone: "",
+    email: "",
+    vehicule_type: "",
+    immatriculation: "",
   });
 
   // Mettre à jour l'ID d'entreprise quand le profil change
@@ -98,6 +110,12 @@ const Livreurs = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Valider le formulaire
+    if (!validateForm()) {
+      showError("Veuillez corriger les erreurs dans le formulaire");
+      return;
+    }
+
     if (!entrepriseId) {
       showError("Utilisateur non connecté");
       return;
@@ -119,6 +137,10 @@ const Livreurs = () => {
       );
 
       if (phoneExists) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          telephone: "Ce numéro de téléphone existe déjà",
+        }));
         showError("Ce numéro de téléphone existe déjà");
         return;
       }
@@ -131,14 +153,25 @@ const Livreurs = () => {
         );
 
         if (emailExists) {
+          setFieldErrors((prev) => ({
+            ...prev,
+            email: "Cet email existe déjà",
+          }));
           showError("Cet email existe déjà");
           return;
         }
       }
 
       const livreurData = {
-        ...formData,
+        nom: formData.nom,
+        prenom: formData.prenom,
+        telephone: formData.telephone,
+        email: formData.email,
+        vehicule_type: formData.vehicule_type,
+        immatriculation: formData.immatriculation,
+        statut: formData.statut,
         id_entreprise: entrepriseId,
+        id_user: profile?.id_user,
       };
 
       let result;
@@ -180,17 +213,24 @@ const Livreurs = () => {
   };
 
   const handleEdit = (livreur) => {
-    setEditingLivreur(livreur);
     setFormData({
       nom: livreur.nom,
-      prenom: livreur.prenom || "",
+      prenom: livreur.prenom,
       telephone: livreur.telephone,
-      email: livreur.email || "",
-      permis_conduire: livreur.permis_conduire || "",
-      vehicule_type: livreur.vehicule_type || "",
-      immatriculation: livreur.immatriculation || "",
+      email: livreur.email,
+      vehicule_type: livreur.vehicule_type,
+      immatriculation: livreur.immatriculation,
       statut: livreur.statut,
     });
+    setFieldErrors({
+      nom: "",
+      prenom: "",
+      telephone: "",
+      email: "",
+      vehicule_type: "",
+      immatriculation: "",
+    });
+    setEditingLivreur(livreur);
     setShowModal(true);
   };
 
@@ -211,17 +251,146 @@ const Livreurs = () => {
     }
   };
 
+  // Fonction de validation des champs
+  const validateField = (fieldName, value) => {
+    let error = "";
+
+    switch (fieldName) {
+      case "nom":
+        if (!value || value.trim() === "") {
+          error = "Le nom est obligatoire";
+        } else if (value !== value.toUpperCase()) {
+          error = "Le nom doit être en majuscules";
+        } else if (value.length < 2) {
+          error = "Le nom doit contenir au moins 2 caractères";
+        }
+        break;
+
+      case "prenom":
+        if (!value || value.trim() === "") {
+          error = "Le prénom est obligatoire";
+        } else if (value.length < 2) {
+          error = "Le prénom doit contenir au moins 2 caractères";
+        }
+        break;
+
+      case "telephone":
+        if (!value || value.trim() === "") {
+          error = "Le téléphone est obligatoire";
+        } else if (!/^\+22901\d{8}$/.test(value)) {
+          error = "Format requis: +2290112345678";
+        }
+        break;
+
+      case "email":
+        if (value && value.trim() !== "") {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(value)) {
+            error = "Format d'email invalide";
+          }
+        }
+        break;
+
+      case "vehicule_type":
+        if (!value || value.trim() === "") {
+          error = "Le type de véhicule est obligatoire";
+        }
+        break;
+
+      case "immatriculation":
+        if (!value || value.trim() === "") {
+          error = "L'immatriculation est obligatoire";
+        }
+
+        break;
+
+      default:
+        break;
+    }
+
+    return error;
+  };
+
+  // Gérer le changement des champs avec validation
+  const handleInputChange = (fieldName, value) => {
+    // Mettre à jour le formData
+    setFormData((prev) => ({ ...prev, [fieldName]: value }));
+
+    // Valider le champ et mettre à jour les erreurs
+    const error = validateField(fieldName, value);
+    setFieldErrors((prev) => ({ ...prev, [fieldName]: error }));
+  };
+
+  // Valider tous les champs
+  const validateForm = () => {
+    const errors = {};
+    let isValid = true;
+
+    // Valider chaque champ
+    Object.keys(formData).forEach((fieldName) => {
+      if (fieldName !== "statut") {
+        // Le statut est géré différemment
+        const error = validateField(fieldName, formData[fieldName]);
+        if (error) {
+          errors[fieldName] = error;
+          isValid = false;
+        }
+      }
+    });
+
+    setFieldErrors(errors);
+    return isValid;
+  };
+
+  // Obtenir l'icône selon le type de véhicule
+  const getVehicleIcon = (vehicleType) => {
+    switch (vehicleType?.toLowerCase()) {
+      case "moto":
+      default:
+        return <Bike className="h-4 w-4 text-blue-600" />;
+      case "tricycle":
+        return <Package className="h-4 w-4 text-green-600" />;
+      case "camion":
+        return <Truck className="h-4 w-4 text-orange-600" />;
+      case "camionnette":
+        return <Truck className="h-4 w-4 text-yellow-600" />;
+    }
+  };
+
+  // Gérer le changement du type de véhicule
+  const handleVehiculeTypeChange = (e) => {
+    const newVehiculeType = e.target.value;
+
+    setFormData({
+      ...formData,
+      vehicule_type: newVehiculeType,
+    });
+
+    // Valider le champ véhicule
+    const error = validateField("vehicule_type", newVehiculeType);
+    setFieldErrors((prev) => ({ ...prev, vehicule_type: error }));
+  };
+
+  // Réinitialiser le formulaire
   const resetForm = () => {
     setFormData({
       nom: "",
       prenom: "",
       telephone: "",
       email: "",
-      permis_conduire: "",
       vehicule_type: "",
       immatriculation: "",
       statut: "ACTIF",
     });
+    setFieldErrors({
+      nom: "",
+      prenom: "",
+      telephone: "",
+      email: "",
+      vehicule_type: "",
+      immatriculation: "",
+    });
+    setEditingLivreur(null);
   };
 
   const filteredLivreurs = livreursList.filter(
@@ -317,157 +486,141 @@ const Livreurs = () => {
             </div>
 
             {/* Search and Filters */}
-            <Card className="mb-6">
-              <CardContent>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
-                    <Input
-                      type="text"
-                      placeholder="Rechercher un livreur..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      icon={Search}
-                    />
-                  </div>
-                  <Button variant="outline" icon={Filter}>
-                    Filtres
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+
+            <div className="flex gap-4 mb-6">
+              <div className="flex-1">
+                <Input
+                  type="text"
+                  placeholder="Rechercher un livreur..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  icon={Search}
+                />
+              </div>
+              <Button variant="outline" icon={Filter}>
+                Filtres
+              </Button>
+            </div>
 
             {/* Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Liste des livreurs</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <TableLoader text="Chargement des livreurs..." />
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Livreur
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Contact
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Véhicule
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Statut
-                          </th>
-                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredLivreurs.length === 0 ? (
-                          <tr>
-                            <td colSpan="5" className="px-6 py-12 text-center">
-                              <div className="flex flex-col items-center">
-                                <Users className="h-12 w-12 text-gray-400 mb-4" />
-                                <p className="text-gray-500">
-                                  Aucun livreur trouvé
-                                </p>
-                                <p className="text-sm text-gray-400 mt-1">
-                                  {searchTerm
-                                    ? "Essayez une autre recherche"
-                                    : "Commencez par ajouter un livreur"}
-                                </p>
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        REF
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Livreur
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Contact
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Véhicule
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Statut
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredLivreurs.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan="6"
+                          className="px-6 py-12 text-center text-gray-500"
+                        >
+                          <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                          <p>Aucun livreur trouvé</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredLivreurs.map((livreur) => (
+                        <tr
+                          key={livreur.id_livreur}
+                          className="hover:bg-gray-50"
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {`LIVR${String(livreursList.indexOf(livreur) + 1).padStart(6, "0")}`}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {livreur.nom} {livreur.prenom}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              ID: {livreur.id_livreur.slice(0, 8)}...
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Phone className="w-4 h-4 text-gray-400" />
+                                {livreur.telephone}
                               </div>
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredLivreurs.map((livreur) => (
-                            <tr
-                              key={livreur.id_livreur}
-                              className="hover:bg-gray-50"
+                              {livreur.email && (
+                                <div className="flex items-center gap-2">
+                                  <Mail className="w-4 h-4 text-gray-400" />
+                                  {livreur.email}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              <div className="flex items-center gap-2 mb-1">
+                                {getVehicleIcon(livreur.vehicule_type)}
+                                <span className="font-medium">
+                                  {livreur.vehicule_type || "Non spécifié"}
+                                </span>
+                              </div>
+                              {livreur.immatriculation && (
+                                <div className="text-xs text-gray-500">
+                                  {livreur.immatriculation}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Badge
+                              variant={
+                                livreur.statut === "ACTIF"
+                                  ? "success"
+                                  : "danger"
+                              }
                             >
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {livreur.nom} {livreur.prenom}
-                                  </div>
-                                  <div className="text-sm text-gray-500">
-                                    ID: {livreur.id_livreur.slice(0, 8)}...
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">
-                                  <div className="flex items-center">
-                                    <Phone className="h-4 w-4 text-gray-400 mr-2" />
-                                    {livreur.telephone}
-                                  </div>
-                                  {livreur.email && (
-                                    <div className="flex items-center mt-1">
-                                      <Mail className="h-4 w-4 text-gray-400 mr-2" />
-                                      {livreur.email}
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">
-                                  <div className="flex items-center">
-                                    <Car className="h-4 w-4 text-gray-400 mr-2" />
-                                    {livreur.vehicule_type || "Non spécifié"}
-                                  </div>
-                                  {livreur.immatriculation && (
-                                    <div className="text-xs text-gray-500 mt-1">
-                                      {livreur.immatriculation}
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <Badge
-                                  variant={
-                                    livreur.statut === "ACTIF"
-                                      ? "success"
-                                      : "danger"
-                                  }
-                                >
-                                  {livreur.statut}
-                                </Badge>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <div className="flex items-center justify-end space-x-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleEdit(livreur)}
-                                    icon={Edit}
-                                  />
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() =>
-                                      handleDelete(
-                                        livreur.id_livreur,
-                                        livreur.nom,
-                                      )
-                                    }
-                                    icon={Trash2}
-                                    className="text-red-600 hover:text-red-700"
-                                  />
-                                </div>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                              {livreur.statut}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleEdit(livreur)}
+                                className="text-blue-600 hover:text-blue-800"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleDelete(livreur.id_livreur, livreur.nom)
+                                }
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -475,7 +628,7 @@ const Livreurs = () => {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="relative top-20 mx-auto p-6 border w-full max-w-2xl shadow-lg rounded-md bg-white">
             <CardHeader>
               <CardTitle>
                 {editingLivreur ? "Modifier un livreur" : "Ajouter un livreur"}
@@ -483,91 +636,217 @@ const Livreurs = () => {
             </CardHeader>
 
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="Nom"
-                    value={formData.nom}
-                    onChange={(e) =>
-                      setFormData({ ...formData, nom: e.target.value })
-                    }
-                    required
-                  />
-                  <Input
-                    label="Prénom"
-                    value={formData.prenom}
-                    onChange={(e) =>
-                      setFormData({ ...formData, prenom: e.target.value })
-                    }
-                  />
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nom *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.nom}
+                      onChange={(e) => handleInputChange("nom", e.target.value)}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                        fieldErrors.nom
+                          ? "border-red-500 ring-2 ring-red-200"
+                          : "border-gray-300 focus:ring-blue-500"
+                      }`}
+                      placeholder="Ex: DUPONT"
+                    />
+                    {fieldErrors.nom && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {fieldErrors.nom}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Prénom *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.prenom}
+                      onChange={(e) =>
+                        handleInputChange("prenom", e.target.value)
+                      }
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                        fieldErrors.prenom
+                          ? "border-red-500 ring-2 ring-red-200"
+                          : "border-gray-300 focus:ring-blue-500"
+                      }`}
+                      placeholder="Ex: Jean"
+                    />
+                    {fieldErrors.prenom && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {fieldErrors.prenom}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
-                <Input
-                  label="Téléphone"
-                  value={formData.telephone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, telephone: e.target.value })
-                  }
-                  required
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Téléphone *
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.telephone}
+                      onChange={(e) =>
+                        handleInputChange("telephone", e.target.value)
+                      }
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                        fieldErrors.telephone
+                          ? "border-red-500 ring-2 ring-red-200"
+                          : "border-gray-300 focus:ring-blue-500"
+                      }`}
+                      placeholder="+2290112345678"
+                    />
+                    {fieldErrors.telephone && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {fieldErrors.telephone}
+                      </p>
+                    )}
+                  </div>
 
-                <Input
-                  label="Email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                />
-
-                <Input
-                  label="Permis de conduire"
-                  value={formData.permis_conduire}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      permis_conduire: e.target.value,
-                    })
-                  }
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="Type de véhicule"
-                    value={formData.vehicule_type}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        vehicule_type: e.target.value,
-                      })
-                    }
-                  />
-                  <Input
-                    label="Immatriculation"
-                    value={formData.immatriculation}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        immatriculation: e.target.value,
-                      })
-                    }
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email *
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) =>
+                        handleInputChange("email", e.target.value)
+                      }
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                        fieldErrors.email
+                          ? "border-red-500 ring-2 ring-red-200"
+                          : "border-gray-300 focus:ring-blue-500"
+                      }`}
+                      placeholder="exemple@gmail.com"
+                    />
+                    {fieldErrors.email && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {fieldErrors.email}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">
-                    Statut
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Type de véhicule *
                   </label>
                   <select
-                    value={formData.statut}
-                    onChange={(e) =>
-                      setFormData({ ...formData, statut: e.target.value })
-                    }
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    value={formData.vehicule_type}
+                    onChange={handleVehiculeTypeChange}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                      fieldErrors.vehicule_type
+                        ? "border-red-500 ring-2 ring-red-200"
+                        : "border-gray-300 focus:ring-blue-500"
+                    }`}
                   >
-                    <option value="ACTIF">Actif</option>
-                    <option value="INACTIF">Inactif</option>
+                    <option value="">--Sélectionner un type--</option>
+                    <option value="Camion">Camion</option>
+                    <option value="camionnette">Camionnette</option>
+                    <option value="tricycle">Tricycle</option>
+                    <option value="moto">Moto</option>
                   </select>
+                  {fieldErrors.vehicule_type && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {fieldErrors.vehicule_type}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Immatriculation *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.immatriculation}
+                      onChange={(e) =>
+                        handleInputChange("immatriculation", e.target.value)
+                      }
+                      placeholder="Ex: CG-1234"
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                        fieldErrors.immatriculation
+                          ? "border-red-500 ring-2 ring-red-200"
+                          : "border-gray-300 focus:ring-blue-500"
+                      }`}
+                    />
+                    {fieldErrors.immatriculation && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {fieldErrors.immatriculation}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Statut
+                  </label>
+                  <div className="flex space-x-6">
+                    {editingLivreur ? (
+                      <>
+                        <label className="inline-flex items-center">
+                          <input
+                            type="radio"
+                            name="statut"
+                            value="ACTIF"
+                            checked={formData.statut === "ACTIF"}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                statut: e.target.value,
+                              })
+                            }
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Actif
+                            </span>
+                          </span>
+                        </label>
+                        <label className="inline-flex items-center">
+                          <input
+                            type="radio"
+                            name="statut"
+                            value="INACTIF"
+                            checked={formData.statut === "INACTIF"}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                statut: e.target.value,
+                              })
+                            }
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              Inactif
+                            </span>
+                          </span>
+                        </label>
+                      </>
+                    ) : (
+                      <div className="flex items-center">
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                          <CheckCircle className="w-4 h-4 mr-1.5" />
+                          Actif
+                        </span>
+                        <span className="ml-3 text-sm text-gray-500">
+                          Par défaut pour les nouveaux livreurs
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </form>
             </CardContent>

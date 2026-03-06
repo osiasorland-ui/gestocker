@@ -1,10 +1,36 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuthHook.js";
-import { Menu, X, Bell, Search } from "lucide-react";
+import { Menu, X, Bell, Calendar, Clock } from "lucide-react";
 
 const Navbar = () => {
   const { user, profile, signOut } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatDate = (date) => {
+    return date.toLocaleDateString("fr-FR", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  const formatTime = (date) => {
+    return date.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -14,7 +40,7 @@ const Navbar = () => {
     <nav className="bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Section gauche - Actions et recherche */}
+          {/* Section gauche - Actions et date/heure */}
           <div className="flex items-center space-x-4">
             {/* Bouton menu mobile */}
             <div className="lg:hidden">
@@ -30,18 +56,16 @@ const Navbar = () => {
               </button>
             </div>
 
-            {/* Barre de recherche */}
-            <div className="hidden md:block">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-4 w-4 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  className="block w-64 pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 focus:border-gray-500"
-                  placeholder="Rechercher..."
-                />
-              </div>
+            {/* Date et heure réelle */}
+            <div className="hidden md:flex items-center space-x-3 bg-gray-50 px-4 py-2 rounded-lg">
+              <Calendar className="w-4 h-4 text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">
+                {formatDate(currentDateTime)}
+              </span>
+              <Clock className="w-4 h-4 text-gray-600 ml-3" />
+              <span className="text-sm font-medium text-gray-700">
+                {formatTime(currentDateTime)}
+              </span>
             </div>
           </div>
 
@@ -76,6 +100,21 @@ const Navbar = () => {
         {isMenuOpen && (
           <div className="md:hidden border-t border-gray-200 pt-4 pb-3">
             <div className="px-2 space-y-1">
+              {/* Date et heure pour mobile */}
+              <div className="px-3 py-2 bg-gray-50 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <Calendar className="w-4 h-4 text-gray-600" />
+                  <span className="text-sm text-gray-700">
+                    {formatDate(currentDateTime)}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2 mt-1">
+                  <Clock className="w-4 h-4 text-gray-600" />
+                  <span className="text-sm text-gray-700">
+                    {formatTime(currentDateTime)}
+                  </span>
+                </div>
+              </div>
               <div className="px-3 py-2 text-sm text-gray-600">
                 {user?.nom || "Utilisateur"}
               </div>

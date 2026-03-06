@@ -36,6 +36,19 @@ import Loader, {
   CardLoader,
 } from "../../components/ui/Loader";
 
+// Constantes pour les rôles basées sur la base de données
+const ROLES = [
+  { id: "1dd58d9b-ab78-4b62-ac8d-1d6234e89e81", libelle: "Gerant Principal" },
+  { id: "2330adb2-bce2-4d87-81de-15cc2b2cb325", libelle: "Gerant" },
+  { id: "2368d31f-4091-4e83-adff-30d7952dad8b", libelle: "Comptable" },
+  { id: "550e8400-e29b-41d4-a716-446655440003", libelle: "Employé" },
+  { id: "5a0fa61f-9db1-4caa-a030-c1f6c5c99ee3", libelle: "Admin" },
+  { id: "a033e29c-94f6-4eb3-9243-a9424ec20357", libelle: "Super User" },
+];
+
+const ADMIN_ROLE_ID = "5a0fa61f-9db1-4caa-a030-c1f6c5c99ee3";
+const SUPER_USER_ROLE_ID = "a033e29c-94f6-4eb3-9243-a9424ec20357";
+
 const Utilisateurs = () => {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -90,12 +103,13 @@ const Utilisateurs = () => {
     }
   }, [profile?.id_entreprise, loadUsers]);
 
-  // Filtrer les utilisateurs
+  // Filtrer les utilisateurs (exclut l'utilisateur connecté pour qu'il ne se voie pas)
   const filteredUsers = usersList.filter(
     (user) =>
-      user.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.prenom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()),
+      user.id_user !== profile?.id_user && // L'utilisateur ne peut pas se voir lui-même
+      (user.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.prenom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
   // Gérer le changement des champs du formulaire
@@ -186,6 +200,28 @@ const Utilisateurs = () => {
     setSuccess("");
 
     try {
+      // Sécurité supplémentaire : au cas où l'utilisateur parviendrait à se sélectionner
+      if (selectedUser.id_user === profile.id_user) {
+        setError("Vous ne pouvez pas supprimer votre propre compte !");
+        setLoading(false);
+        return;
+      }
+
+      // Vérifier si l'utilisateur sélectionné est un admin ou super user
+      const isProtectedRole =
+        selectedUser.role_id === ADMIN_ROLE_ID ||
+        selectedUser.role_id === SUPER_USER_ROLE_ID ||
+        selectedUser.id_role === ADMIN_ROLE_ID || // Fallback au cas où le champ s'appelle id_role
+        selectedUser.id_role === SUPER_USER_ROLE_ID;
+
+      if (isProtectedRole) {
+        setError(
+          "Vous ne pouvez pas supprimer un compte Administrateur ou Super User !",
+        );
+        setLoading(false);
+        return;
+      }
+
       // Utiliser le service role pour contourner RLS
       const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
@@ -251,7 +287,7 @@ const Utilisateurs = () => {
       prenom: user.prenom,
       email: user.email,
       telephone: user.telephone,
-      role_id: user.role_id,
+      role_id: user.role_id || user.id_role, // Gère les deux orthographes selon ta BDD
       id_entreprise: user.id_entreprise,
       statut: user.statut,
       mot_de_passe: "",
@@ -397,7 +433,9 @@ const Utilisateurs = () => {
                       <div className="flex items-center">
                         <Shield className="w-4 h-4 mr-1 text-gray-400" />
                         <span className="text-sm text-gray-900">
-                          {user.roles?.nom_role || "Non défini"}
+                          {user.roles?.nom_role ||
+                            user.roles?.libelle ||
+                            "Non défini"}
                         </span>
                       </div>
                     </td>
@@ -425,7 +463,19 @@ const Utilisateurs = () => {
                             setSelectedUser(user);
                             setShowDeleteModal(true);
                           }}
-                          className="text-red-600 hover:text-red-900"
+                          className="text-red-600 hover:text-red-900 disabled:text-gray-400 disabled:cursor-not-allowed"
+                          disabled={
+                            user.role_id === ADMIN_ROLE_ID ||
+                            user.role_id === SUPER_USER_ROLE_ID ||
+                            user.id_role === ADMIN_ROLE_ID ||
+                            user.id_role === SUPER_USER_ROLE_ID
+                          }
+                          title={
+                            user.role_id === ADMIN_ROLE_ID ||
+                            user.role_id === SUPER_USER_ROLE_ID
+                              ? "Vous ne pouvez pas supprimer un compte Administrateur ou Super User"
+                              : "Supprimer l'utilisateur"
+                          }
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -521,9 +571,11 @@ const Utilisateurs = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">Sélectionner un rôle</option>
-                  <option value="1">Administrateur</option>
-                  <option value="2">Gestionnaire</option>
-                  <option value="3">Employé</option>
+                  {ROLES.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.libelle}
+                    </option>
+                  ))}
                 </select>
               </div>
 

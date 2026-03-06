@@ -135,17 +135,19 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
       id: "settings",
       icon: Settings,
       label: "Paramètres",
-      active: location.pathname.includes("/settings"),
+      active:
+        location.pathname.includes("/settings") ||
+        location.pathname.includes("/parametres"),
       children: [
+        {
+          label: "Vue d'ensemble",
+          path: "/settings",
+          active: location.pathname === "/settings",
+        },
         {
           label: "Utilisateurs",
           path: "/settings/utilisateurs",
           active: location.pathname === "/settings/utilisateurs",
-        },
-        {
-          label: "Système",
-          path: "/settings/systeme",
-          active: location.pathname === "/settings/systeme",
         },
       ],
     },

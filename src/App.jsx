@@ -9,7 +9,6 @@ import Authentification from "./pages/Authentification";
 import DashboardWrapper from "./pages/dashboard/DashboardWrapper.jsx";
 import Analyse from "./pages/rapports/Analyse";
 import ProtectedRoute from "./components/ProtectedRoute";
-import Layout from "./components/Layout";
 import Produits from "./pages/stock/Produits";
 import Categories from "./pages/stock/Categories";
 import Mouvements from "./pages/stock/Mouvements";
@@ -24,11 +23,8 @@ import CommandesAchat from "./pages/achats/CommandesAchat";
 import Receptions from "./pages/achats/Receptions";
 import AchatsWrapper from "./pages/achats/AchatsWrapper";
 import Utilisateurs from "./pages/parametres/Utilisateurs";
-import Systeme from "./pages/parametres/Systeme";
-import Securite from "./pages/parametres/Securite";
-import Sauvegarde from "./pages/parametres/Sauvegarde";
-import Notifications from "./pages/parametres/Notifications";
 import ParametresWrapper from "./pages/parametres/ParametresWrapper";
+import Parametres from "./pages/parametres/Parametres";
 import Rapports from "./pages/rapports/Rapports.jsx";
 import Livreurs from "./pages/livreurs/Livreurs";
 import RapportsAnalyseWrapper from "./pages/rapports/RapportsAnalyseWrapper";
@@ -170,41 +166,11 @@ function App() {
             }
           />
           <Route
-            path="/parametres/systeme"
+            path="/settings"
             element={
               <ProtectedRoute>
                 <ParametresWrapper>
-                  <Systeme />
-                </ParametresWrapper>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/parametres/securite"
-            element={
-              <ProtectedRoute>
-                <ParametresWrapper>
-                  <Securite />
-                </ParametresWrapper>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/parametres/sauvegarde"
-            element={
-              <ProtectedRoute>
-                <ParametresWrapper>
-                  <Sauvegarde />
-                </ParametresWrapper>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/parametres/notifications"
-            element={
-              <ProtectedRoute>
-                <ParametresWrapper>
-                  <Notifications />
+                  <Parametres />
                 </ParametresWrapper>
               </ProtectedRoute>
             }
@@ -215,46 +181,6 @@ function App() {
               <ProtectedRoute>
                 <ParametresWrapper>
                   <Utilisateurs />
-                </ParametresWrapper>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings/systeme"
-            element={
-              <ProtectedRoute>
-                <ParametresWrapper>
-                  <Systeme />
-                </ParametresWrapper>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings/securite"
-            element={
-              <ProtectedRoute>
-                <ParametresWrapper>
-                  <Securite />
-                </ParametresWrapper>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings/sauvegarde"
-            element={
-              <ProtectedRoute>
-                <ParametresWrapper>
-                  <Sauvegarde />
-                </ParametresWrapper>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings/notifications"
-            element={
-              <ProtectedRoute>
-                <ParametresWrapper>
-                  <Notifications />
                 </ParametresWrapper>
               </ProtectedRoute>
             }
@@ -274,7 +200,7 @@ function App() {
             element={
               <ProtectedRoute>
                 <RapportsAnalyseWrapper>
-                  <Rapports/>
+                  <Rapports />
                 </RapportsAnalyseWrapper>
               </ProtectedRoute>
             }

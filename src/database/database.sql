@@ -80,12 +80,12 @@ CREATE TABLE public.factures (
 );
 CREATE TABLE public.fournisseurs (
   id_fournisseur uuid NOT NULL DEFAULT gen_random_uuid(),
-  nom_fournisseur character varying NOT NULL,
-  contact_telephone character varying NOT NULL,
+  nom_fournisseur character varying NOT NULL CHECK (nom_fournisseur IS NOT NULL AND nom_fournisseur::text <> ''::text),
+  contact_telephone character varying NOT NULL CHECK (contact_telephone IS NOT NULL AND contact_telephone::text <> ''::text),
   adresse text NOT NULL,
   id_entreprise uuid NOT NULL,
   contact_nom character varying NOT NULL DEFAULT ''::character varying,
-  contact_email character varying NOT NULL DEFAULT ''::character varying,
+  contact_email character varying NOT NULL DEFAULT ''::character varying CHECK (contact_email IS NULL OR contact_email::text = ''::text OR contact_email::text ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'::text),
   ville character varying NOT NULL DEFAULT ''::character varying,
   pays character varying NOT NULL DEFAULT ''::character varying,
   conditions_paiement text NOT NULL DEFAULT ''::text,
@@ -131,7 +131,6 @@ CREATE TABLE public.livreurs (
   prenom character varying,
   telephone character varying NOT NULL,
   email character varying,
-  permis_conduire character varying,
   vehicule_type character varying,
   immatriculation character varying,
   statut text DEFAULT 'ACTIF'::text CHECK (statut = ANY (ARRAY['ACTIF'::text, 'INACTIF'::text])),
@@ -193,17 +192,6 @@ CREATE TABLE public.paiements (
   CONSTRAINT paiements_pkey PRIMARY KEY (id_paiement),
   CONSTRAINT paiements_new_id_facture_fkey FOREIGN KEY (id_facture) REFERENCES public.factures(id_facture),
   CONSTRAINT paiements_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
-);
-CREATE TABLE public.parametres_systeme (
-  id_parametre uuid NOT NULL DEFAULT gen_random_uuid(),
-  nom_parametre character varying NOT NULL,
-  valeur_parametre text,
-  description text,
-  id_entreprise uuid NOT NULL,
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT parametres_systeme_pkey PRIMARY KEY (id_parametre),
-  CONSTRAINT parametres_systeme_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );
 CREATE TABLE public.permissions (
   id_permission uuid NOT NULL DEFAULT gen_random_uuid(),

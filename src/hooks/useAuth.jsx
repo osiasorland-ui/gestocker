@@ -10,6 +10,44 @@ import {
   ROLE_GROUPS,
 } from "./authUtils.js";
 
+// Utilitaires de nettoyage pour les problèmes de rate limiting
+const cleanupAuthIssues = () => {
+  try {
+    const keysToRemove = [];
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (
+        key &&
+        (key.startsWith("migration_attempt_") ||
+          key.includes("_failed") ||
+          key.includes("supabase.auth.token"))
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach((key) => {
+      localStorage.removeItem(key);
+      console.log(`Nettoyé: ${key}`);
+    });
+
+    console.log(`Nettoyage terminé: ${keysToRemove.length} éléments supprimés`);
+    return keysToRemove.length;
+  } catch (error) {
+    console.error("Erreur lors du nettoyage:", error);
+    return 0;
+  }
+};
+
+// Ajouter un helper global dans la console pour les utilisateurs
+if (typeof window !== "undefined") {
+  window.cleanupAuth = cleanupAuthIssues;
+  console.log(
+    "Helper disponible: tapez cleanupAuth() dans la console pour nettoyer les problèmes d'auth",
+  );
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -61,6 +99,32 @@ export const AuthProvider = ({ children }) => {
         return false;
       }
 
+      // DÉSACTIVÉ: La migration cause des problèmes de rate limiting
+      // En développement, on utilise toujours le fallback local
+      console.log(
+        "Migration désactivée en développement, utilisation du fallback local",
+      );
+      return false;
+
+      /*
+      // Code de migration désactivé pour éviter les rate limits
+      // Gardé comme référence pour une future implémentation plus robuste
+
+      // Vérifier si nous avons déjà tenté la migration récemment pour éviter les boucles
+      const migrationKey = `migration_attempt_${localSession.profile.id_user}`;
+      const lastAttempt = localStorage.getItem(migrationKey);
+      if (lastAttempt) {
+        const timeSinceLastAttempt = Date.now() - parseInt(lastAttempt);
+        // Attendre au moins 5 minutes entre les tentatives
+        if (timeSinceLastAttempt < 5 * 60 * 1000) {
+          console.log("Migration récemment tentée, utilisation du fallback local");
+          return false;
+        }
+      }
+
+      // Marquer cette tentative
+      localStorage.setItem(migrationKey, Date.now().toString());
+
       // Créer une session Supabase avec l'ID utilisateur
       const { error } = await supabase.auth.setSession({
         access_token: "migrated_token_" + localSession.profile.id_user,
@@ -87,17 +151,30 @@ export const AuthProvider = ({ children }) => {
             },
           });
 
+        // Si rate limit ou autre erreur, ne pas retenter
+        if (signUpError) {
+          console.error("Échec migration permanent:", signUpError.message);
+          // Marquer comme échec permanent pour cette session
+          localStorage.setItem(`${migrationKey}_failed`, 'true');
+          return false;
+        }
+
         if (!signUpError && signUpData.user) {
           console.log("Session migrée avec succès via signUp");
+          // Nettoyer les marqueurs d'échec
+          localStorage.removeItem(`${migrationKey}_failed`);
           return true;
         }
 
-        console.error("Échec migration:", signUpError);
+        console.error("Échec migration inattendu");
         return false;
       }
 
       console.log("Session migrée avec succès");
+      // Nettoyer les marqueurs d'échec
+      localStorage.removeItem(`${migrationKey}_failed`);
       return true;
+      */
     } catch (error) {
       console.error("Erreur migration session:", error);
       return false;
@@ -136,30 +213,11 @@ export const AuthProvider = ({ children }) => {
           if (storedSession) {
             console.log("Session locale trouvée:", storedSession);
 
-            // Tenter de migrer vers Supabase
-            const migrationSuccess =
-              await migrateLocalSessionToSupabase(storedSession);
-
-            if (migrationSuccess) {
-              console.log("Migration réussie, re-vérification session...");
-              // Re-vérifier la session après migration
-              const {
-                data: { session: migratedSession },
-              } = await supabase.auth.getSession();
-
-              if (migratedSession?.user) {
-                console.log("Session migrée trouvée:", migratedSession);
-                setUser(migratedSession.user);
-
-                const customUserId =
-                  migratedSession.user.user_metadata?.custom_user_id ||
-                  migratedSession.user.id;
-                await loadUserProfile(customUserId);
-                return; // Sortir early, la suite est gérée par l'écouteur
-              }
-            }
-
-            // Fallback: utiliser la session locale
+            // Migration complètement désactivée pour éviter les rate limits
+            // Utiliser directement le fallback local
+            console.log(
+              "Utilisation directe de la session locale (migration désactivée)",
+            );
             setUser(storedSession.user);
             setProfile(storedSession.profile);
             setPermissions(storedSession.permissions);

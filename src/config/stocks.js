@@ -26,11 +26,13 @@ export const stocks = {
     return retryRequest(async () => {
       const { data, error } = await supabase
         .from("stocks")
-        .select(`
+        .select(
+          `
           *,
           produits (designation, sku),
           entrepots (nom_entrepot)
-        `)
+        `,
+        )
         .eq("id_entreprise", entrepriseId);
 
       if (error) throw error;
@@ -56,15 +58,41 @@ export const stocks = {
     });
   },
 
+  // Obtenir le stock d'un produit dans un entrepôt spécifique (alias pour consistency)
+  getByProductAndWarehouse: async (productId, warehouseId) => {
+    return retryRequest(async () => {
+      const { data, error } = await supabase
+        .from("stocks")
+        .select(
+          `
+          *,
+          produits (designation, sku),
+          entrepots (nom_entrepot)
+        `,
+        )
+        .eq("id_produit", productId)
+        .eq("id_entrepot", warehouseId)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        throw error;
+      }
+
+      return { data: data || { quantite_disponible: 0 }, error: null };
+    });
+  },
+
   // Obtenir tous les stocks d'un produit (dans tous les entrepôts)
   getProductStocks: async (productId, entrepriseId) => {
     return retryRequest(async () => {
       const { data, error } = await supabase
         .from("stocks")
-        .select(`
+        .select(
+          `
           *,
           entrepots (nom_entrepot)
-        `)
+        `,
+        )
         .eq("id_produit", productId)
         .eq("id_entreprise", entrepriseId);
 
@@ -78,10 +106,12 @@ export const stocks = {
     return retryRequest(async () => {
       const { data, error } = await supabase
         .from("stocks")
-        .select(`
+        .select(
+          `
           *,
           produits (designation, sku, categories (nom_categorie))
-        `)
+        `,
+        )
         .eq("id_entrepot", warehouseId)
         .eq("id_entreprise", entrepriseId)
         .order("quantite_disponible", { ascending: true });
@@ -98,11 +128,13 @@ export const stocks = {
         .from("stocks")
         .update({ quantite_disponible: Math.max(0, quantity) })
         .eq("id_stock", stockId)
-        .select(`
+        .select(
+          `
           *,
           produits (designation, sku),
           entrepots (nom_entrepot)
-        `)
+        `,
+        )
         .single();
 
       if (error) throw error;
@@ -119,11 +151,13 @@ export const stocks = {
           onConflict: "id_produit,id_entrepot,id_entreprise",
           ignoreDuplicates: false,
         })
-        .select(`
+        .select(
+          `
           *,
           produits (designation, sku),
           entrepots (nom_entrepot)
-        `)
+        `,
+        )
         .single();
 
       if (error) throw error;
@@ -136,11 +170,13 @@ export const stocks = {
     return retryRequest(async () => {
       const { data, error } = await supabase
         .from("stocks")
-        .select(`
+        .select(
+          `
           *,
           produits (designation, sku, categories (nom_categorie)),
           entrepots (nom_entrepot)
-        `)
+        `,
+        )
         .eq("id_entreprise", entrepriseId)
         .lte("quantite_disponible", "seuil_alerte")
         .order("quantite_disponible", { ascending: true });
@@ -162,9 +198,13 @@ export const stocks = {
 
       const stats = {
         totalProducts: data?.length || 0,
-        lowStockProducts: data?.filter(s => s.quantite_disponible <= s.seuil_alerte).length || 0,
-        outOfStockProducts: data?.filter(s => s.quantite_disponible === 0).length || 0,
-        totalQuantity: data?.reduce((sum, s) => sum + s.quantite_disponible, 0) || 0,
+        lowStockProducts:
+          data?.filter((s) => s.quantite_disponible <= s.seuil_alerte).length ||
+          0,
+        outOfStockProducts:
+          data?.filter((s) => s.quantite_disponible === 0).length || 0,
+        totalQuantity:
+          data?.reduce((sum, s) => sum + s.quantite_disponible, 0) || 0,
       };
 
       return { data: stats, error: null };
@@ -240,7 +280,9 @@ export const stocks = {
       if (sourceError) throw sourceError;
 
       if (sourceStock.quantite_disponible < quantity) {
-        throw new Error(`Stock insuffisant. Disponible: ${sourceStock.quantite_disponible}, Demandé: ${quantity}`);
+        throw new Error(
+          `Stock insuffisant. Disponible: ${sourceStock.quantite_disponible}, Demandé: ${quantity}`,
+        );
       }
 
       // Créer le transfert
@@ -263,7 +305,9 @@ export const stocks = {
       // Mettre à jour le stock source (sortie)
       await supabase
         .from("stocks")
-        .update({ quantite_disponible: sourceStock.quantite_disponible - quantity })
+        .update({
+          quantite_disponible: sourceStock.quantite_disponible - quantity,
+        })
         .eq("id_produit", productId)
         .eq("id_entrepot", fromWarehouseId);
 
@@ -277,48 +321,46 @@ export const stocks = {
 
       if (destError && destError.code === "PGRST116") {
         // Créer un nouveau stock pour l'entrepôt de destination
-        await supabase
-          .from("stocks")
-          .insert({
-            id_produit: productId,
-            id_entrepot: toWarehouseId,
-            quantite_disponible: quantity,
-            id_entreprise: entrepriseId,
-          });
+        await supabase.from("stocks").insert({
+          id_produit: productId,
+          id_entrepot: toWarehouseId,
+          quantite_disponible: quantity,
+          id_entreprise: entrepriseId,
+        });
       } else if (destError) {
         throw destError;
       } else {
         // Mettre à jour le stock existant
         await supabase
           .from("stocks")
-          .update({ quantite_disponible: destStock.quantite_disponible + quantity })
+          .update({
+            quantite_disponible: destStock.quantite_disponible + quantity,
+          })
           .eq("id_produit", productId)
           .eq("id_entrepot", toWarehouseId);
       }
 
       // Créer les mouvements correspondants
-      await supabase
-        .from("mouvements_stock")
-        .insert([
-          {
-            type_mvt: "SORTIE",
-            quantite: quantity,
-            motif: `Transfert vers ${toWarehouseId}: ${motif || "Transfert de stock"}`,
-            id_produit: productId,
-            id_entrepot: fromWarehouseId,
-            id_user: userId,
-            id_entreprise: entrepriseId,
-          },
-          {
-            type_mvt: "ENTREE",
-            quantite: quantity,
-            motif: `Transfert depuis ${fromWarehouseId}: ${motif || "Transfert de stock"}`,
-            id_produit: productId,
-            id_entrepot: toWarehouseId,
-            id_user: userId,
-            id_entreprise: entrepriseId,
-          },
-        ]);
+      await supabase.from("mouvements_stock").insert([
+        {
+          type_mvt: "SORTIE",
+          quantite: quantity,
+          motif: `Transfert vers ${toWarehouseId}: ${motif || "Transfert de stock"}`,
+          id_produit: productId,
+          id_entrepot: fromWarehouseId,
+          id_user: userId,
+          id_entreprise: entrepriseId,
+        },
+        {
+          type_mvt: "ENTREE",
+          quantite: quantity,
+          motif: `Transfert depuis ${fromWarehouseId}: ${motif || "Transfert de stock"}`,
+          id_produit: productId,
+          id_entrepot: toWarehouseId,
+          id_user: userId,
+          id_entreprise: entrepriseId,
+        },
+      ]);
 
       return { data: transfer, error: null };
     });

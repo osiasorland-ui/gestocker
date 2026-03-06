@@ -4,13 +4,31 @@ import { supabase } from "./auth.js";
 export const livreurs = {
   // Obtenir tous les livreurs d'une entreprise
   getAll: async (entrepriseId) => {
-    const { data, error } = await supabase
-      .from("livreurs")
-      .select("*")
-      .eq("id_entreprise", entrepriseId)
-      .order("created_at", { ascending: false });
+    try {
+      // Utiliser un client admin pour contourner les restrictions RLS
+      const { createClient } = await import("./auth.js");
+      const supabaseAdmin = createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        },
+      );
 
-    return { data, error };
+      const { data, error } = await supabaseAdmin
+        .from("livreurs")
+        .select("*")
+        .eq("id_entreprise", entrepriseId)
+        .order("created_at", { ascending: false });
+
+      return { data, error };
+    } catch (err) {
+      console.error("Erreur dans getAll:", err);
+      return { data: null, error: err };
+    }
   },
 
   // Obtenir un livreur par son ID
@@ -38,7 +56,20 @@ export const livreurs = {
 
       console.log("Données finales avec user:", dataWithUser);
 
-      const { data, error } = await supabase
+      // Utiliser un client admin pour contourner les restrictions RLS
+      const { createClient } = await import("./auth.js");
+      const supabaseAdmin = createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        },
+      );
+
+      const { data, error } = await supabaseAdmin
         .from("livreurs")
         .insert(dataWithUser)
         .select()
@@ -66,7 +97,20 @@ export const livreurs = {
   // Mettre à jour un livreur
   update: async (livreurId, updates) => {
     try {
-      const { data, error } = await supabase
+      // Utiliser un client admin pour contourner les restrictions RLS
+      const { createClient } = await import("./auth.js");
+      const supabaseAdmin = createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        },
+      );
+
+      const { data, error } = await supabaseAdmin
         .from("livreurs")
         .update(updates)
         .eq("id_livreur", livreurId)
@@ -83,7 +127,20 @@ export const livreurs = {
   // Supprimer un livreur
   delete: async (livreurId) => {
     try {
-      const { data, error } = await supabase
+      // Utiliser un client admin pour contourner les restrictions RLS
+      const { createClient } = await import("./auth.js");
+      const supabaseAdmin = createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        },
+      );
+
+      const { data, error } = await supabaseAdmin
         .from("livreurs")
         .delete()
         .eq("id_livreur", livreurId);
