@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useAuth } from "../../hooks/useAuth";
+import React, { useState, useEffect, useCallback } from "react";
+import { useAuth } from "../../hooks/useAuthHook.js";
 import { useNotification } from "../../hooks/useNotification";
 import Notification from "../../components/Notification";
 import {
@@ -18,6 +18,23 @@ import {
   Clock,
   XCircle,
 } from "lucide-react";
+
+// Import des composants UI
+import Card, {
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "../../components/ui/Card";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import Badge from "../../components/ui/Badge";
+import Loader, {
+  PageLoader,
+  TableLoader,
+  InlineLoader,
+  CardLoader,
+} from "../../components/ui/Loader";
 
 function CommandesAchat() {
   const [commandes, setCommandes] = useState([]);
@@ -50,20 +67,7 @@ function CommandesAchat() {
     total: 0,
   });
 
-  const statuts = [
-    { value: "en_attente", label: "En attente", icon: Clock, color: "text-yellow-600" },
-    { value: "confirmee", label: "Confirmée", icon: CheckCircle, color: "text-blue-600" },
-    { value: "partiellement_livree", label: "Partiellement livrée", icon: Package, color: "text-orange-600" },
-    { value: "livree", label: "Livrée", icon: CheckCircle, color: "text-green-600" },
-    { value: "annulee", label: "Annulée", icon: XCircle, color: "text-red-600" },
-  ];
-
-  // Charger les données depuis la base de données
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!profile?.id_entreprise) return;
 
     try {
@@ -71,45 +75,9 @@ function CommandesAchat() {
       setError("");
 
       // Simulation de chargement - à remplacer par l'appel API réel
-      const mockCommandes = [
-        {
-          id_commande_achat: "1",
-          reference: "CA-2025-001",
-          id_fournisseur: "1",
-          fournisseurs: { nom_fournisseur: "TechSupply Africa" },
-          date_commande: "2025-01-15",
-          date_livraison_prevue: "2025-01-22",
-          statut: "en_attente",
-          montant_total: 1500000,
-          notes: "Commande de matériel informatique",
-          articles: [
-            { designation: "Ordinateur Portable", quantite: 5, prix_unitaire: 250000, total: 1250000 },
-            { designation: "Souris sans fil", quantite: 10, prix_unitaire: 25000, total: 250000 },
-          ],
-          created_at: new Date().toISOString(),
-        },
-        {
-          id_commande_achat: "2",
-          reference: "CA-2025-002",
-          id_fournisseur: "2",
-          fournisseurs: { nom_fournisseur: "Global Hardware Ltd" },
-          date_commande: "2025-01-10",
-          date_livraison_prevue: "2025-01-20",
-          statut: "confirmee",
-          montant_total: 750000,
-          notes: "Fournitures de bureau",
-          articles: [
-            { designation: "Papier A4", quantite: 50, prix_unitaire: 5000, total: 250000 },
-            { designation: "Stylos bleus", quantite: 100, prix_unitaire: 5000, total: 500000 },
-          ],
-          created_at: new Date().toISOString(),
-        },
-      ];
+      const mockCommandes = [];
 
-      const mockFournisseurs = [
-        { id_fournisseur: "1", nom_fournisseur: "TechSupply Africa" },
-        { id_fournisseur: "2", nom_fournisseur: "Global Hardware Ltd" },
-      ];
+      const mockFournisseurs = [];
 
       setCommandes(mockCommandes);
       setFournisseurs(mockFournisseurs);
@@ -119,12 +87,54 @@ function CommandesAchat() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile?.id_entreprise, showError]);
+
+  const statuts = [
+    {
+      value: "en_attente",
+      label: "En attente",
+      icon: Clock,
+      color: "text-yellow-600",
+    },
+    {
+      value: "confirmee",
+      label: "Confirmée",
+      icon: CheckCircle,
+      color: "text-blue-600",
+    },
+    {
+      value: "partiellement_livree",
+      label: "Partiellement livrée",
+      icon: Package,
+      color: "text-orange-600",
+    },
+    {
+      value: "livree",
+      label: "Livrée",
+      icon: CheckCircle,
+      color: "text-green-600",
+    },
+    {
+      value: "annulee",
+      label: "Annulée",
+      icon: XCircle,
+      color: "text-red-600",
+    },
+  ];
+
+  // Charger les données depuis la base de données
+  useEffect(() => {
+    if (profile?.id_entreprise) {
+      loadData();
+    }
+  }, [profile?.id_entreprise]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredCommandes = commandes.filter(
     (commande) =>
       commande.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      commande.fournisseurs?.nom_fournisseur.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      commande.fournisseurs?.nom_fournisseur
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
       commande.statut.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
@@ -173,12 +183,17 @@ function CommandesAchat() {
 
     try {
       const commandeData = {
-        reference: editingCommande ? editingCommande.reference : generateReference(),
+        reference: editingCommande
+          ? editingCommande.reference
+          : generateReference(),
         id_fournisseur: formData.id_fournisseur,
         date_commande: formData.date_commande,
         date_livraison_prevue: formData.date_livraison_prevue,
         statut: formData.statut,
-        montant_total: formData.articles.reduce((sum, article) => sum + article.total, 0),
+        montant_total: formData.articles.reduce(
+          (sum, article) => sum + article.total,
+          0,
+        ),
         notes: formData.notes,
         articles: formData.articles,
         id_entreprise: profile.id_entreprise,
@@ -190,7 +205,7 @@ function CommandesAchat() {
         const updatedCommandes = commandes.map((c) =>
           c.id_commande_achat === editingCommande.id_commande_achat
             ? { ...c, ...commandeData }
-            : c
+            : c,
         );
         setCommandes(updatedCommandes);
       } else {
@@ -198,7 +213,9 @@ function CommandesAchat() {
         const newCommande = {
           id_commande_achat: Date.now().toString(),
           ...commandeData,
-          fournisseurs: fournisseurs.find((f) => f.id_fournisseur === formData.id_fournisseur),
+          fournisseurs: fournisseurs.find(
+            (f) => f.id_fournisseur === formData.id_fournisseur,
+          ),
           created_at: new Date().toISOString(),
         };
         setCommandes([...commandes, newCommande]);
@@ -236,12 +253,17 @@ function CommandesAchat() {
   };
 
   const addArticle = () => {
-    if (!articleForm.designation || !articleForm.quantite || !articleForm.prix_unitaire) {
+    if (
+      !articleForm.designation ||
+      !articleForm.quantite ||
+      !articleForm.prix_unitaire
+    ) {
       showError("Veuillez remplir tous les champs de l'article");
       return;
     }
 
-    const total = parseFloat(articleForm.quantite) * parseFloat(articleForm.prix_unitaire);
+    const total =
+      parseFloat(articleForm.quantite) * parseFloat(articleForm.prix_unitaire);
     const newArticle = {
       ...articleForm,
       quantite: parseInt(articleForm.quantite),
@@ -288,7 +310,9 @@ function CommandesAchat() {
 
     try {
       // Simulation de suppression - à remplacer par l'appel API réel
-      const updatedCommandes = commandes.filter((c) => c.id_commande_achat !== id_commande_achat);
+      const updatedCommandes = commandes.filter(
+        (c) => c.id_commande_achat !== id_commande_achat,
+      );
       setCommandes(updatedCommandes);
       showSuccess("Commande supprimée avec succès");
     } catch (err) {
@@ -309,7 +333,9 @@ function CommandesAchat() {
           <h1 className="text-2xl font-bold text-gray-900">
             Commandes d'Achat
           </h1>
-          <p className="text-gray-600">Gérez vos commandes d'achat fournisseurs</p>
+          <p className="text-gray-600">
+            Gérez vos commandes d'achat fournisseurs
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -323,10 +349,7 @@ function CommandesAchat() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12">
-          <ShoppingCart className="w-12 h-12 mx-auto mb-4 text-gray-300 animate-pulse" />
-          <p className="text-gray-500">Chargement des commandes...</p>
-        </div>
+        <PageLoader text="Chargement des commandes d'achat..." />
       ) : error ? (
         <div className="text-center py-12">
           <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-300" />
@@ -384,7 +407,10 @@ function CommandesAchat() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredCommandes.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
+                      <td
+                        colSpan="7"
+                        className="px-6 py-12 text-center text-gray-500"
+                      >
                         <ShoppingCart className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                         <p>Aucune commande trouvée</p>
                       </td>
@@ -394,7 +420,10 @@ function CommandesAchat() {
                       const statutInfo = getStatutInfo(commande.statut);
                       const StatutIcon = statutInfo.icon;
                       return (
-                        <tr key={commande.id_commande_achat} className="hover:bg-gray-50">
+                        <tr
+                          key={commande.id_commande_achat}
+                          className="hover:bg-gray-50"
+                        >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
                               {commande.reference}
@@ -408,17 +437,23 @@ function CommandesAchat() {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-2 text-sm text-gray-900">
                               <Calendar className="w-4 h-4 text-gray-400" />
-                              {new Date(commande.date_commande).toLocaleDateString("fr-FR")}
+                              {new Date(
+                                commande.date_commande,
+                              ).toLocaleDateString("fr-FR")}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-2 text-sm text-gray-900">
                               <Calendar className="w-4 h-4 text-gray-400" />
-                              {new Date(commande.date_livraison_prevue).toLocaleDateString("fr-FR")}
+                              {new Date(
+                                commande.date_livraison_prevue,
+                              ).toLocaleDateString("fr-FR")}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className={`flex items-center gap-2 ${statutInfo.color}`}>
+                            <div
+                              className={`flex items-center gap-2 ${statutInfo.color}`}
+                            >
                               <StatutIcon className="w-4 h-4" />
                               <span className="text-sm font-medium">
                                 {statutInfo.label}
@@ -445,7 +480,9 @@ function CommandesAchat() {
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handleDelete(commande.id_commande_achat)}
+                                onClick={() =>
+                                  handleDelete(commande.id_commande_achat)
+                                }
                                 className="text-red-600 hover:text-red-800"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -468,7 +505,9 @@ function CommandesAchat() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">
-              {editingCommande ? "Modifier la commande" : "Nouvelle commande d'achat"}
+              {editingCommande
+                ? "Modifier la commande"
+                : "Nouvelle commande d'achat"}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -480,13 +519,19 @@ function CommandesAchat() {
                     required
                     value={formData.id_fournisseur}
                     onChange={(e) =>
-                      setFormData({ ...formData, id_fournisseur: e.target.value })
+                      setFormData({
+                        ...formData,
+                        id_fournisseur: e.target.value,
+                      })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   >
                     <option value="">Sélectionner un fournisseur</option>
                     {fournisseurs.map((fournisseur) => (
-                      <option key={fournisseur.id_fournisseur} value={fournisseur.id_fournisseur}>
+                      <option
+                        key={fournisseur.id_fournisseur}
+                        value={fournisseur.id_fournisseur}
+                      >
                         {fournisseur.nom_fournisseur}
                       </option>
                     ))}
@@ -522,7 +567,10 @@ function CommandesAchat() {
                     required
                     value={formData.date_commande}
                     onChange={(e) =>
-                      setFormData({ ...formData, date_commande: e.target.value })
+                      setFormData({
+                        ...formData,
+                        date_commande: e.target.value,
+                      })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   />
@@ -535,7 +583,10 @@ function CommandesAchat() {
                     type="date"
                     value={formData.date_livraison_prevue}
                     onChange={(e) =>
-                      setFormData({ ...formData, date_livraison_prevue: e.target.value })
+                      setFormData({
+                        ...formData,
+                        date_livraison_prevue: e.target.value,
+                      })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   />
@@ -549,11 +600,18 @@ function CommandesAchat() {
                 </label>
                 <div className="border border-gray-200 rounded-lg p-4 space-y-3">
                   {formData.articles.map((article, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    >
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900">{article.designation}</div>
+                        <div className="font-medium text-gray-900">
+                          {article.designation}
+                        </div>
                         <div className="text-sm text-gray-500">
-                          {article.quantite} × {formatPrice(article.prix_unitaire)} = {formatPrice(article.total)}
+                          {article.quantite} ×{" "}
+                          {formatPrice(article.prix_unitaire)} ={" "}
+                          {formatPrice(article.total)}
                         </div>
                       </div>
                       <button
@@ -572,7 +630,10 @@ function CommandesAchat() {
                       placeholder="Désignation"
                       value={articleForm.designation}
                       onChange={(e) =>
-                        setArticleForm({ ...articleForm, designation: e.target.value })
+                        setArticleForm({
+                          ...articleForm,
+                          designation: e.target.value,
+                        })
                       }
                       className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                     />
@@ -581,7 +642,10 @@ function CommandesAchat() {
                       placeholder="Quantité"
                       value={articleForm.quantite}
                       onChange={(e) =>
-                        setArticleForm({ ...articleForm, quantite: e.target.value })
+                        setArticleForm({
+                          ...articleForm,
+                          quantite: e.target.value,
+                        })
                       }
                       className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                     />
@@ -590,7 +654,10 @@ function CommandesAchat() {
                       placeholder="Prix unitaire"
                       value={articleForm.prix_unitaire}
                       onChange={(e) =>
-                        setArticleForm({ ...articleForm, prix_unitaire: e.target.value })
+                        setArticleForm({
+                          ...articleForm,
+                          prix_unitaire: e.target.value,
+                        })
                       }
                       className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                     />
@@ -659,7 +726,9 @@ function CommandesAchat() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-sm text-gray-500">Fournisseur:</span>
-                  <div className="font-medium">{selectedCommande.fournisseurs?.nom_fournisseur}</div>
+                  <div className="font-medium">
+                    {selectedCommande.fournisseurs?.nom_fournisseur}
+                  </div>
                 </div>
                 <div>
                   <span className="text-sm text-gray-500">Statut:</span>
@@ -670,13 +739,19 @@ function CommandesAchat() {
                 <div>
                   <span className="text-sm text-gray-500">Date commande:</span>
                   <div className="font-medium">
-                    {new Date(selectedCommande.date_commande).toLocaleDateString("fr-FR")}
+                    {new Date(
+                      selectedCommande.date_commande,
+                    ).toLocaleDateString("fr-FR")}
                   </div>
                 </div>
                 <div>
-                  <span className="text-sm text-gray-500">Date livraison prévue:</span>
+                  <span className="text-sm text-gray-500">
+                    Date livraison prévue:
+                  </span>
                   <div className="font-medium">
-                    {new Date(selectedCommande.date_livraison_prevue).toLocaleDateString("fr-FR")}
+                    {new Date(
+                      selectedCommande.date_livraison_prevue,
+                    ).toLocaleDateString("fr-FR")}
                   </div>
                 </div>
               </div>
@@ -706,8 +781,12 @@ function CommandesAchat() {
                         <tr key={index}>
                           <td className="px-4 py-2">{article.designation}</td>
                           <td className="px-4 py-2">{article.quantite}</td>
-                          <td className="px-4 py-2">{formatPrice(article.prix_unitaire)}</td>
-                          <td className="px-4 py-2 font-medium">{formatPrice(article.total)}</td>
+                          <td className="px-4 py-2">
+                            {formatPrice(article.prix_unitaire)}
+                          </td>
+                          <td className="px-4 py-2 font-medium">
+                            {formatPrice(article.total)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

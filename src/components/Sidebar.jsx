@@ -38,11 +38,24 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
       active: location.pathname === "/livreurs",
     },
     {
-      id: "rapports",
-      icon: FileText,
-      label: "Rapports",
-      path: "/rapports",
-      active: location.pathname === "/rapports",
+      id: "rapports-analyse",
+      icon: BarChart3,
+      label: "Analythique",
+      active:
+        location.pathname.includes("/rapports") ||
+        location.pathname === "/analyse",
+      children: [
+        {
+          label: "Analyse",
+          path: "/rapports/analyse",
+          active: location.pathname === "/rapports/analyse",
+        },
+        {
+          label: "Rapports généraux",
+          path: "/rapports/rapports-généraux",
+          active: location.pathname === "/rapports/rapports-généraux",
+        },
+      ],
     },
     {
       id: "stock",

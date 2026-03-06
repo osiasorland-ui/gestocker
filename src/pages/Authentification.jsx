@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion"; // eslint-disable-line no-unused-vars
 import Lottie from "lottie-react";
 import {
   Building2,
@@ -109,6 +109,7 @@ const registerSchema = yup.object().shape({
     .string()
     .required("Le logo est requis")
     .test("logo-file", "Veuillez sélectionner un logo", function (value) {
+      // Vérifier si un fichier a été sélectionné
       return value && value.trim() !== "";
     }),
 });
@@ -147,6 +148,7 @@ function Authentification() {
     setError,
     clearErrors,
     setValue,
+    getValues,
   } = useForm({
     resolver: yupResolver(registerSchema),
     mode: "onChange",
@@ -217,14 +219,13 @@ function Authentification() {
 
         const reader = new FileReader();
         reader.onloadend = () => {
-          const base64String = reader.result;
-          setFormData((prev) => ({
-            ...prev,
-            logo_base64: base64String,
-          }));
+          setLogoPreview(reader.result);
+          // Mettre à jour le champ logo_path avec le nom du fichier
+          setValue("logo_path", file.name);
           clearErrors("logo_path");
           setSubmitError("");
         };
+        reader.readAsDataURL(file);
       } else {
         setSubmitError(
           "Veuillez sélectionner une image valide (JPG, PNG, etc.)",
@@ -232,6 +233,8 @@ function Authentification() {
       }
     } else {
       // Aucun fichier sélectionné
+      setLogoPreview("");
+      setValue("logo_path", "");
     }
   };
 
@@ -249,6 +252,11 @@ function Authentification() {
         setSubmitError("Le logo est requis pour créer votre compte");
         setIsLoading(false);
         return;
+      }
+
+      // S'assurer que le champ logo_path est bien rempli avec le nom du fichier
+      if (!data.logo_path) {
+        setValue("logo_path", logoFile.name);
       }
 
       // Valider le champ logo_path dans le formulaire
@@ -300,7 +308,7 @@ function Authentification() {
           setSubmitError(errorMessage);
         }
       }
-    } catch (error) {
+    } catch {
       setSubmitError("Une erreur est survenue lors de l'inscription.");
     } finally {
       setIsLoading(false);

@@ -12,7 +12,7 @@ import {
   Calendar,
   Filter,
 } from "lucide-react";
-import { supabase } from "../config/supabase";
+import { supabase } from "../../config/supabase";
 
 const Analyse = () => {
   const [periode, setPeriode] = useState("mois");

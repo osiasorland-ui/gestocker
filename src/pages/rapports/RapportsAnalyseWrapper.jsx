@@ -1,9 +1,8 @@
 import React from "react";
-import Layout from "../components/Layout";
-import Dashboard from "./Dashboard";
-import { useAuth } from "../hooks/useAuth";
+import Layout from "../../components/Layout";
+import { useAuth } from "../../hooks/useAuthHook.js";
 
-const DashboardWrapper = () => {
+const RapportsAnalyseWrapper = ({ children }) => {
   const { profile, signOut } = useAuth();
 
   const handleLogout = async () => {
@@ -12,9 +11,9 @@ const DashboardWrapper = () => {
 
   return (
     <Layout profile={profile} onLogout={handleLogout}>
-      <Dashboard />
+      {children}
     </Layout>
   );
 };
 
-export default DashboardWrapper;
+export default RapportsAnalyseWrapper;

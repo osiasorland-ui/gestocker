@@ -1,9 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { categories } from "../../config/supabase";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../../hooks/useAuthHook.js";
 import { useNotification } from "../../hooks/useNotification";
 import Notification from "../../components/Notification";
 import { Plus, Search, Edit2, Trash2, Folder, Package } from "lucide-react";
+
+import Loader, {
+  PageLoader,
+  TableLoader,
+  InlineLoader,
+  CardLoader,
+} from "../../components/ui/Loader";
 
 function Categories() {
   const [categoriesList, setCategoriesList] = useState([]);
@@ -20,23 +27,7 @@ function Categories() {
     nom_categorie: "",
   });
 
-  // Générer une référence à partir de la catégorie pour affichage
-  const getCategoryReference = (category) => {
-    // Générer une référence basée sur l'index
-    const index =
-      categoriesList.findIndex(
-        (c) => c.id_categorie === category.id_categorie,
-      ) + 1;
-    const paddedNumber = index.toString().padStart(6, "0");
-    return `CAT${paddedNumber}`;
-  };
-
-  // Charger les données depuis la base de données
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!profile?.id_entreprise) return;
 
     try {
@@ -53,7 +44,25 @@ function Categories() {
     } finally {
       setLoading(false);
     }
+  }, [profile?.id_entreprise, showError]);
+
+  // Générer une référence à partir de la catégorie pour affichage
+  const getCategoryReference = (category) => {
+    // Générer une référence basée sur l'index
+    const index =
+      categoriesList.findIndex(
+        (c) => c.id_categorie === category.id_categorie,
+      ) + 1;
+    const paddedNumber = index.toString().padStart(6, "0");
+    return `CAT${paddedNumber}`;
   };
+
+  // Charger les données depuis la base de données
+  useEffect(() => {
+    if (profile?.id_entreprise) {
+      loadData();
+    }
+  }, [profile?.id_entreprise]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredCategories = categoriesList.filter((category) =>
     category.nom_categorie.toLowerCase().includes(searchTerm.toLowerCase()),
@@ -158,10 +167,7 @@ function Categories() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12">
-          <Folder className="w-12 h-12 mx-auto mb-4 text-gray-300 animate-pulse" />
-          <p className="text-gray-500">Chargement des catégories...</p>
-        </div>
+        <PageLoader text="Chargement des catégories..." />
       ) : error ? (
         <div className="text-center py-12">
           <Folder className="w-12 h-12 mx-auto mb-4 text-red-300" />

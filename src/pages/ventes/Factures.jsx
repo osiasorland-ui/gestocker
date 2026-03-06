@@ -17,6 +17,23 @@ import {
   Send,
 } from "lucide-react";
 
+// Import des composants UI
+import Card, {
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "../../components/ui/Card";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import Badge from "../../components/ui/Badge";
+import Loader, {
+  PageLoader,
+  TableLoader,
+  InlineLoader,
+  CardLoader,
+} from "../../components/ui/Loader";
+
 const Factures = () => {
   const [factures, setFactures] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");

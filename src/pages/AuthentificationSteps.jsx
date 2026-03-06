@@ -320,6 +320,7 @@ export const Step2CompanyInfo = ({ register, errors, setValue }) => (
 
 // Étape 3: Logo de l'entreprise
 export const Step3Logo = ({
+  register,
   errors,
   handleLogoUpload,
   logoFile,
@@ -337,6 +338,9 @@ export const Step3Logo = ({
     </div>
 
     <div className="space-y-5">
+      {/* Champ caché pour le logo_path */}
+      <input type="hidden" {...register("logo_path")} />
+
       {/* Upload du logo */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">

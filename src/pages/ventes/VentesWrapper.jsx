@@ -1,6 +1,6 @@
 import React from "react";
 import Layout from "../../components/Layout";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../../hooks/useAuthHook.js";
 
 const VentesWrapper = ({ children }) => {
   const { profile, signOut } = useAuth();

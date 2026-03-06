@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { MapPin } from "lucide-react";
 import {
   getDepartements,
@@ -7,28 +7,36 @@ import {
 } from "../data/beninLocations";
 
 const AddressSelector = ({ value, onChange, error, register, setValue }) => {
-  const [departement, setDepartement] = useState("");
-  const [commune, setCommune] = useState("");
-  const [arrondissement, setArrondissement] = useState("");
+  // Parse the current value to get individual components
+  const parseValue = (val) => {
+    if (!val) return { departement: "", commune: "", arrondissement: "" };
+    const parts = val.split(",").map((part) => part.trim());
+    return {
+      departement: parts[0] || "",
+      commune: parts[1] || "",
+      arrondissement: parts[2] || "",
+    };
+  };
+
+  const parsed = parseValue(value);
+  const [departement, setDepartement] = useState(parsed.departement);
+  const [commune, setCommune] = useState(parsed.commune);
+  const [arrondissement, setArrondissement] = useState(parsed.arrondissement);
+
+  // Update local state when value prop changes externally
+  const [lastValue, setLastValue] = useState(value);
+  if (value !== lastValue) {
+    const newParsed = parseValue(value);
+    setDepartement(newParsed.departement);
+    setCommune(newParsed.commune);
+    setArrondissement(newParsed.arrondissement);
+    setLastValue(value);
+  }
 
   const departements = getDepartements();
   const communes = departement ? getCommunes(departement) : [];
   const arrondissements =
     departement && commune ? getArrondissements(departement, commune) : [];
-
-  useEffect(() => {
-    // Parse existing value if provided
-    if (value) {
-      const parts = value.split(",").map((part) => part.trim());
-      if (parts.length >= 2) {
-        setDepartement(parts[0]);
-        setCommune(parts[1]);
-        if (parts.length >= 3) {
-          setArrondissement(parts[2]);
-        }
-      }
-    }
-  }, [value]);
 
   const updateAddress = (dep, com, arr) => {
     let address = "";

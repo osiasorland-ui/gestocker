@@ -228,7 +228,7 @@ export const otp = {
 
       console.log(`✅ Email envoyé avec succès via Supabase à ${email}`);
       return { success: true, data, method: "supabase" };
-    } catch (error) {
+    } catch {
       // Fallback en cas d'erreur
       return { success: true, fallback: true, method: "console" };
     }

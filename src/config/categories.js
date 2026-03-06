@@ -81,7 +81,7 @@ export const categories = {
       // Formatter avec 6 chiffres, complété par des zéros
       const paddedNumber = nextNumber.toString().padStart(6, "0");
       return `CAT${paddedNumber}`;
-    } catch (error) {
+    } catch {
       // En cas d'erreur, utiliser un timestamp comme fallback
       const timestamp = Date.now().toString().slice(-6);
       return `CAT${timestamp}`;
@@ -89,14 +89,14 @@ export const categories = {
   },
 
   // Incrémenter le compteur de produits pour une catégorie
-  incrementProductCount: async (categoryId) => {
+  incrementProductCount: async () => {
     // Ne plus stocker en base, le compteur est calculé dynamiquement dans getAll()
     // Cette fonction ne fait rien pour l'instant, mais garde la compatibilité
     return { data: null, error: null };
   },
 
   // Décrémenter le compteur de produits pour une catégorie
-  decrementProductCount: async (categoryId) => {
+  decrementProductCount: async () => {
     // Ne plus stocker en base, le compteur est calculé dynamiquement dans getAll()
     // Cette fonction ne fait rien pour l'instant, mais garde la compatibilité
     return { data: null, error: null };

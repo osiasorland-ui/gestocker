@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Plus,
   Search,
@@ -12,7 +12,24 @@ import {
   ArrowDownLeft,
 } from "lucide-react";
 import { warehouses } from "../../config/supabase";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../../hooks/useAuthHook.js";
+
+// Import des composants UI
+import Card, {
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "../../components/ui/Card";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import Badge from "../../components/ui/Badge";
+import Loader, {
+  PageLoader,
+  TableLoader,
+  InlineLoader,
+  CardLoader,
+} from "../../components/ui/Loader";
 
 function Entrepots() {
   const { profile, loading: authLoading } = useAuth();
@@ -36,7 +53,7 @@ function Entrepots() {
   const [error, setError] = useState(null);
 
   // Charger les entrepôts depuis la base de données
-  const loadEntrepots = async () => {
+  const loadEntrepots = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -60,7 +77,7 @@ function Entrepots() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile]);
 
   useEffect(() => {
     if (!authLoading && profile) {
@@ -69,7 +86,7 @@ function Entrepots() {
       setError("Utilisateur non connecté");
       setLoading(false);
     }
-  }, [profile, authLoading]);
+  }, [profile, authLoading, loadEntrepots]);
 
   // Générer une référence à partir de l'entrepôt pour affichage (séparé du nom)
   const getWarehouseReference = (entrepot) => {
@@ -249,10 +266,7 @@ function Entrepots() {
 
       {/* Loading State */}
       {loading || authLoading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          <p className="mt-2 text-gray-600">Chargement des entrepôts...</p>
-        </div>
+        <PageLoader text="Chargement des entrepôts..." />
       ) : null}
 
       {/* Search */}

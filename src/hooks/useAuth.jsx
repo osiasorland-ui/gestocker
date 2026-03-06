@@ -2,61 +2,19 @@ import { useState, useEffect } from "react";
 import React from "react";
 import { auth, users, supabase } from "../config/supabase";
 import { AuthContext } from "./authContext";
+import {
+  saveSessionToStorage,
+  loadSessionFromStorage,
+  clearSessionStorage,
+  ROLE_NAMES,
+  ROLE_GROUPS,
+} from "./authUtils.js";
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState([]);
-
-  // Sauvegarder la session dans sessionStorage uniquement
-  const saveSessionToStorage = (userData, profileData, rememberMe = false) => {
-    // Toujours utiliser sessionStorage - expire à la fermeture du navigateur
-    sessionStorage.setItem("gestocker_user", JSON.stringify(userData));
-    sessionStorage.setItem("gestocker_profile", JSON.stringify(profileData));
-    sessionStorage.setItem("gestocker_permissions", JSON.stringify([]));
-
-    // Le paramètre rememberMe n'est plus utilisé pour le stockage persistant
-    // mais on peut le garder pour d'autres futures fonctionnalités
-    if (rememberMe) {
-      sessionStorage.setItem("gestocker_remember", "true");
-    } else {
-      sessionStorage.setItem("gestocker_remember", "false");
-    }
-  };
-
-  // Charger la session depuis sessionStorage uniquement
-  const loadSessionFromStorage = () => {
-    // Toujours utiliser sessionStorage - pas de persistance entre les sessions
-    try {
-      const userData = sessionStorage.getItem("gestocker_user");
-      const profileData = sessionStorage.getItem("gestocker_profile");
-      const permissionsData = sessionStorage.getItem("gestocker_permissions");
-
-      if (userData && profileData) {
-        setUser(JSON.parse(userData));
-        setProfile(JSON.parse(profileData));
-        setPermissions(JSON.parse(permissionsData) || []);
-        return true;
-      }
-    } catch (error) {
-      console.error("Erreur lors du chargement de la session:", error);
-      // Nettoyer sessionStorage en cas d'erreur
-      sessionStorage.removeItem("gestocker_user");
-      sessionStorage.removeItem("gestocker_profile");
-      sessionStorage.removeItem("gestocker_permissions");
-      sessionStorage.removeItem("gestocker_remember");
-    }
-    return false;
-  };
-
-  // Nettoyer la session
-  const clearSessionStorage = () => {
-    sessionStorage.removeItem("gestocker_user");
-    sessionStorage.removeItem("gestocker_profile");
-    sessionStorage.removeItem("gestocker_permissions");
-    sessionStorage.removeItem("gestocker_remember");
-  };
 
   // Charger les données utilisateur complètes
   const loadUserProfile = async (userId) => {
@@ -65,13 +23,14 @@ export const AuthProvider = ({ children }) => {
         await users.getProfile(userId);
 
       if (profileError) {
+        console.error("Erreur lors du chargement du profil:", profileError);
         return;
       }
 
-      setProfile(profileData);
-
-      // Charger les permissions
       if (profileData) {
+        setProfile(profileData);
+
+        // Charger les permissions
         const { data: permissionsData, error: permissionsError } =
           await users.getUserPermissions(profileData.id_user);
 
@@ -80,10 +39,68 @@ export const AuthProvider = ({ children }) => {
             .map((p) => p.permission_name)
             .filter(Boolean);
           setPermissions(perms);
+        } else if (permissionsError) {
+          console.error(
+            "Erreur lors du chargement des permissions:",
+            permissionsError,
+          );
         }
       }
     } catch (error) {
       console.error("Erreur dans loadUserProfile:", error);
+    }
+  };
+
+  // Migrer la session locale vers Supabase
+  const migrateLocalSessionToSupabase = async (localSession) => {
+    try {
+      console.log("Migration de la session locale vers Supabase...");
+
+      if (!localSession?.profile?.id_user) {
+        console.log("Pas de profil local à migrer");
+        return false;
+      }
+
+      // Créer une session Supabase avec l'ID utilisateur
+      const { error } = await supabase.auth.setSession({
+        access_token: "migrated_token_" + localSession.profile.id_user,
+        refresh_token: "migrated_refresh_" + localSession.profile.id_user,
+      });
+
+      if (error) {
+        console.log("Erreur migration, tentative avec signUp...");
+
+        // Alternative: créer un utilisateur Supabase temporaire
+        const tempEmail = `${localSession.profile.id_user}@migrated.local`;
+        const tempPassword = `temp_${localSession.profile.id_user}`;
+
+        const { data: signUpData, error: signUpError } =
+          await supabase.auth.signUp({
+            email: tempEmail,
+            password: tempPassword,
+            options: {
+              data: {
+                custom_user_id: localSession.profile.id_user,
+                original_email: localSession.profile.email,
+                migrated: true,
+              },
+            },
+          });
+
+        if (!signUpError && signUpData.user) {
+          console.log("Session migrée avec succès via signUp");
+          return true;
+        }
+
+        console.error("Échec migration:", signUpError);
+        return false;
+      }
+
+      console.log("Session migrée avec succès");
+      return true;
+    } catch (error) {
+      console.error("Erreur migration session:", error);
+      return false;
     }
   };
 
@@ -92,53 +109,154 @@ export const AuthProvider = ({ children }) => {
     const initializeAuth = async () => {
       setLoading(true);
 
-      // Essayer de charger la session depuis le stockage
-      const hasStoredSession = loadSessionFromStorage();
-
-      if (!hasStoredSession) {
-        // Vérifier la session Supabase
+      try {
+        // Vérifier la session Supabase d'abord
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
-        if (session?.user) {
-          // Charger le profil utilisateur
-          await loadUserProfile(session.user.id);
-        }
-      }
+        console.log("Session Supabase trouvée:", session);
 
-      setLoading(false);
+        if (session?.user) {
+          console.log("Utilisateur Supabase authentifié:", session.user);
+          setUser(session.user);
+
+          // Récupérer les données complètes depuis notre table
+          const customUserId =
+            session.user.user_metadata?.custom_user_id || session.user.id;
+          console.log("Chargement du profil pour ID:", customUserId);
+          await loadUserProfile(customUserId);
+        } else {
+          console.log(
+            "Pas de session Supabase, vérification stockage local...",
+          );
+          // Essayer de charger la session depuis le stockage local
+          const storedSession = loadSessionFromStorage();
+
+          if (storedSession) {
+            console.log("Session locale trouvée:", storedSession);
+
+            // Tenter de migrer vers Supabase
+            const migrationSuccess =
+              await migrateLocalSessionToSupabase(storedSession);
+
+            if (migrationSuccess) {
+              console.log("Migration réussie, re-vérification session...");
+              // Re-vérifier la session après migration
+              const {
+                data: { session: migratedSession },
+              } = await supabase.auth.getSession();
+
+              if (migratedSession?.user) {
+                console.log("Session migrée trouvée:", migratedSession);
+                setUser(migratedSession.user);
+
+                const customUserId =
+                  migratedSession.user.user_metadata?.custom_user_id ||
+                  migratedSession.user.id;
+                await loadUserProfile(customUserId);
+                return; // Sortir early, la suite est gérée par l'écouteur
+              }
+            }
+
+            // Fallback: utiliser la session locale
+            setUser(storedSession.user);
+            setProfile(storedSession.profile);
+            setPermissions(storedSession.permissions);
+          } else {
+            console.log("Aucune session trouvée");
+          }
+        }
+      } catch (error) {
+        console.error("Erreur lors de l'initialisation de l'auth:", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     initializeAuth();
+
+    // Écouter les changements d'état d'authentification
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log("Changement d'état auth:", event, session);
+
+        if (event === "SIGNED_IN" && session?.user) {
+          console.log("Utilisateur connecté:", session.user);
+          setUser(session.user);
+
+          const customUserId =
+            session.user.user_metadata?.custom_user_id || session.user.id;
+          await loadUserProfile(customUserId);
+        } else if (event === "SIGNED_OUT") {
+          console.log("Utilisateur déconnecté");
+          setUser(null);
+          setProfile(null);
+          setPermissions([]);
+          clearSessionStorage();
+        } else if (event === "TOKEN_REFRESHED") {
+          console.log("Token rafraîchi");
+        }
+      },
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   // Fonctions d'authentification
   const signIn = async (email, password, rememberMe = false) => {
     setLoading(true);
+    console.log("=== DÉBUT CONNEXION ===");
+    console.log("Email:", email);
+    console.log("Password provided:", !!password);
+
     try {
+      console.log("Appel de auth.signIn...");
       const { data, error } = await auth.signIn(email, password);
 
       if (error) {
+        console.error("Erreur retournée par auth.signIn:", error);
         throw error;
       }
 
+      console.log("Succès auth.signIn, data reçue:", data);
+
       // Si connexion réussie, charger le profil uniquement
       if (data.user) {
+        console.log("Utilisateur trouvé, mise à jour de l'état...");
         // Mettre à jour l'état
         setUser(data.user);
 
         // Utiliser id_user depuis notre table ou id depuis Supabase Auth
         const userId = data.user.id_user || data.user.id;
+        console.log("UserID pour le profil:", userId);
+
+        console.log("Chargement du profil utilisateur...");
         await loadUserProfile(userId);
 
+        console.log("Sauvegarde de la session...");
         // Sauvegarder la session
         const profileData = await users.getProfile(userId);
-        saveSessionToStorage(data.user, profileData.data, rememberMe);
+        console.log("Profil data:", profileData);
+        saveSessionToStorage(
+          data.user,
+          profileData.data || profileData,
+          rememberMe,
+        );
+
+        console.log("=== CONNEXION RÉUSSIE ===");
+      } else {
+        console.log("Aucun utilisateur trouvé dans data.user");
       }
 
       return { success: true, data };
     } catch (error) {
+      console.error("=== ERREUR CONNEXION ===");
+      console.error("Type d'erreur:", typeof error);
+      console.error("Message d'erreur:", error.message);
+      console.error("Erreur complète:", error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -290,32 +408,11 @@ export const AuthProvider = ({ children }) => {
     getCurrentCompany,
 
     // États dérivés
-    isAdmin: hasRole("ADMIN") || hasRole("SUPER_ADMIN"),
-    isManager: hasAnyRole(["ADMIN", "SUPER_ADMIN", "MANAGER"]),
-    isStockManager: hasAnyRole([
-      "ADMIN",
-      "SUPER_ADMIN",
-      "MANAGER",
-      "STOCK_MANAGER",
-    ]),
-    isEmployee: hasAnyRole([
-      "ADMIN",
-      "SUPER_ADMIN",
-      "MANAGER",
-      "STOCK_MANAGER",
-      "EMPLOYEE",
-    ]),
+    isAdmin: hasRole(ROLE_NAMES.ADMIN) || hasRole(ROLE_NAMES.SUPER_ADMIN),
+    isManager: hasAnyRole(ROLE_GROUPS.MANAGER),
+    isStockManager: hasAnyRole(ROLE_GROUPS.STOCK_MANAGER),
+    isEmployee: hasAnyRole(ROLE_GROUPS.EMPLOYEE),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-
-export const useAuth = () => {
-  const context = React.useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
-
-export default AuthContext;

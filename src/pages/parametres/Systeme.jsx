@@ -18,10 +18,28 @@ import {
   Bell,
 } from "lucide-react";
 
+// Import des composants UI
+import Card, {
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "../../components/ui/Card";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import Badge from "../../components/ui/Badge";
+import Loader, {
+  PageLoader,
+  TableLoader,
+  InlineLoader,
+  CardLoader,
+} from "../../components/ui/Loader";
+
 const Systeme = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const [tableChecked, setTableChecked] = useState(false);
   const [systemInfo, setSystemInfo] = useState({
     nom_application: "Gestocker",
     version: "1.0.0",
@@ -46,26 +64,61 @@ const Systeme = () => {
 
   // Charger les paramètres système
   const loadSystemSettings = useCallback(async () => {
+    // Éviter les appels répétés si la table a déjà été vérifiée
+    if (tableChecked) return;
+
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("parametres_systeme")
-        .select("*")
-        .single();
+      // Obtenir l'utilisateur et l'ID entreprise
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const idEntreprise = user?.user_metadata?.id_entreprise;
 
-      if (error && error.code !== "PGRST116") {
+      let query = supabase.from("parametres_systeme").select("*");
+
+      // Si l'utilisateur a une entreprise, filtrer par entreprise
+      if (idEntreprise) {
+        query = query.eq("id_entreprise", idEntreprise);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        // Gérer le cas où la table n'existe pas (erreur 406 ou PGRST116)
+        if (error.code === "PGRST116" || error.status === 406) {
+          console.log(
+            "Table parametres_systeme non trouvée, utilisation des valeurs par défaut",
+          );
+          setTableChecked(true);
+          return;
+        }
         throw error;
       }
 
-      if (data) {
-        setSystemInfo((prev) => ({ ...prev, ...data }));
+      if (data && data.length > 0) {
+        // Convertir le format clé-valeur en objet
+        const settings = {};
+        data.forEach((param) => {
+          // Convertir les valeurs en types appropriés
+          let value = param.valeur_parametre;
+          if (value === "true") value = true;
+          else if (value === "false") value = false;
+          else if (!isNaN(value) && value !== "") value = Number(value);
+
+          settings[param.nom_parametre] = value;
+        });
+
+        setSystemInfo((prev) => ({ ...prev, ...settings }));
       }
+      setTableChecked(true);
     } catch (error) {
+      console.error("Erreur lors du chargement des paramètres:", error);
       setError("Erreur lors du chargement des paramètres: " + error.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tableChecked]);
 
   useEffect(() => {
     loadSystemSettings();
@@ -90,13 +143,35 @@ const Systeme = () => {
     setSuccess("");
 
     try {
-      const { error } = await supabase
-        .from("parametres_systeme")
-        .upsert([systemInfo], {
-          onConflict: "id",
-        });
+      // Obtenir l'ID entreprise une seule fois
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const idEntreprise =
+        user?.user_metadata?.id_entreprise ||
+        "00000000-0000-0000-0000-000000000000";
 
-      if (error) throw error;
+      // Convertir l'objet systemInfo en tableau de paramètres clé-valeur
+      const parameters = Object.entries(systemInfo).map(([key, value]) => ({
+        nom_parametre: key,
+        valeur_parametre: value.toString(),
+        description: `Paramètre système: ${key}`,
+        id_entreprise: idEntreprise,
+      }));
+
+      // Supprimer les anciens paramètres et insérer les nouveaux
+      const { error: deleteError } = await supabase
+        .from("parametres_systeme")
+        .delete()
+        .neq("id_parametre", "00000000-0000-0000-0000-000000000000");
+
+      if (deleteError) throw deleteError;
+
+      const { error: insertError } = await supabase
+        .from("parametres_systeme")
+        .insert(parameters);
+
+      if (insertError) throw insertError;
 
       setSuccess("Paramètres système enregistrés avec succès !");
     } catch (error) {
@@ -160,10 +235,7 @@ const Systeme = () => {
                 className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
                 {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Enregistrement...
-                  </>
+                  <InlineLoader text="Enregistrement..." size="sm" />
                 ) : (
                   <>
                     <Save className="w-4 h-4 mr-2" />

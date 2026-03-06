@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../hooks/useAuthHook.js";
-import { users, auth, supabase } from "../../config/supabase.js";
+import { users, auth, supabase, createClient } from "../../config/supabase.js";
 import {
   Users,
   UserPlus,
@@ -18,6 +18,23 @@ import {
   X,
   AlertCircle,
 } from "lucide-react";
+
+// Import des composants UI
+import Card, {
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "../../components/ui/Card";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import Badge from "../../components/ui/Badge";
+import Loader, {
+  PageLoader,
+  TableLoader,
+  InlineLoader,
+  CardLoader,
+} from "../../components/ui/Loader";
 
 const Utilisateurs = () => {
   const { profile } = useAuth();
@@ -38,8 +55,7 @@ const Utilisateurs = () => {
     email: "",
     telephone: "",
     role_id: "",
-    id_entreprise: profile?.entreprises?.id_entreprise || "",
-    statut: "actif",
+    id_entreprise: profile?.id_entreprise || "",
     mot_de_passe: "",
   });
 
@@ -56,7 +72,7 @@ const Utilisateurs = () => {
           entreprises (*)
         `,
         )
-        .eq("id_entreprise", profile?.entreprises?.id_entreprise)
+        .eq("id_entreprise", profile?.id_entreprise)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -66,13 +82,13 @@ const Utilisateurs = () => {
     } finally {
       setLoading(false);
     }
-  }, [profile?.entreprises?.id_entreprise]);
+  }, [profile?.id_entreprise]);
 
   useEffect(() => {
-    if (profile?.entreprises?.id_entreprise) {
+    if (profile?.id_entreprise) {
       loadUsers();
     }
-  }, [profile, loadUsers]);
+  }, [profile?.id_entreprise, loadUsers]);
 
   // Filtrer les utilisateurs
   const filteredUsers = usersList.filter(
@@ -124,8 +140,7 @@ const Utilisateurs = () => {
         email: "",
         telephone: "",
         role_id: "",
-        id_entreprise: profile?.entreprises?.id_entreprise || "",
-        statut: "actif",
+        id_entreprise: profile?.id_entreprise || "",
         mot_de_passe: "",
       });
       loadUsers();
@@ -150,7 +165,6 @@ const Utilisateurs = () => {
         email: formData.email,
         telephone: formData.telephone,
         role_id: formData.role_id,
-        statut: formData.statut,
       });
 
       if (error) throw error;
@@ -172,18 +186,58 @@ const Utilisateurs = () => {
     setSuccess("");
 
     try {
-      const { error } = await supabase
+      // Utiliser le service role pour contourner RLS
+      const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+      if (!serviceRoleKey) {
+        throw new Error("Service role key not configured");
+      }
+
+      // Créer un client admin avec le service role key
+      const supabaseAdmin = createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        serviceRoleKey,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+          global: {
+            headers: {
+              Authorization: `Bearer ${serviceRoleKey}`,
+            },
+          },
+        },
+      );
+
+      // Supprimer en cascade avec le service role
+      await supabaseAdmin
+        .from("transferts")
+        .delete()
+        .eq("id_user", selectedUser.id_user);
+
+      await supabaseAdmin
+        .from("mouvements_stock")
+        .delete()
+        .eq("id_user", selectedUser.id_user);
+
+      await supabaseAdmin
+        .from("notifications")
+        .delete()
+        .eq("id_user", selectedUser.id_user);
+
+      const { error } = await supabaseAdmin
         .from("utilisateurs")
-        .update({ statut: "inactif" })
+        .delete()
         .eq("id_user", selectedUser.id_user);
 
       if (error) throw error;
 
-      setSuccess("Utilisateur désactivé avec succès!");
+      setSuccess("Utilisateur supprimé avec succès!");
       setShowDeleteModal(false);
       loadUsers();
     } catch (error) {
-      setError("Erreur lors de la désactivation: " + error.message);
+      setError("Erreur lors de la suppression: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -293,11 +347,8 @@ const Utilisateurs = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td
-                    colSpan="5"
-                    className="px-6 py-4 text-center text-gray-500"
-                  >
-                    Chargement...
+                  <td colSpan="5" className="px-6 py-8">
+                    <TableLoader text="Chargement des utilisateurs..." />
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
@@ -410,7 +461,7 @@ const Utilisateurs = () => {
                   <input
                     type="text"
                     name="nom"
-                    value={formData.nom}
+                    value={formData.nom || ""}
                     onChange={handleInputChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -423,7 +474,7 @@ const Utilisateurs = () => {
                   <input
                     type="text"
                     name="prenom"
-                    value={formData.prenom}
+                    value={formData.prenom || ""}
                     onChange={handleInputChange}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -438,7 +489,7 @@ const Utilisateurs = () => {
                 <input
                   type="email"
                   name="email"
-                  value={formData.email}
+                  value={formData.email || ""}
                   onChange={handleInputChange}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -452,7 +503,7 @@ const Utilisateurs = () => {
                 <input
                   type="tel"
                   name="telephone"
-                  value={formData.telephone}
+                  value={formData.telephone || ""}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -464,7 +515,7 @@ const Utilisateurs = () => {
                 </label>
                 <select
                   name="role_id"
-                  value={formData.role_id}
+                  value={formData.role_id || ""}
                   onChange={handleInputChange}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -484,7 +535,7 @@ const Utilisateurs = () => {
                   <input
                     type="password"
                     name="mot_de_passe"
-                    value={formData.mot_de_passe}
+                    value={formData.mot_de_passe || ""}
                     onChange={handleInputChange}
                     required
                     minLength="6"
@@ -529,13 +580,13 @@ const Utilisateurs = () => {
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex items-center mb-4">
               <AlertCircle className="w-6 h-6 text-red-500 mr-2" />
-              <h2 className="text-xl font-bold">Confirmer la désactivation</h2>
+              <h2 className="text-xl font-bold">Confirmer la suppression</h2>
             </div>
 
             <p className="text-gray-600 mb-6">
-              Êtes-vous sûr de vouloir désactiver l'utilisateur "
+              Êtes-vous sûr de vouloir supprimer l'utilisateur "
               {selectedUser?.prenom} {selectedUser?.nom}" ? Cette action est
-              réversible.
+              irréversible.
             </p>
 
             <div className="flex justify-end space-x-3">
@@ -550,7 +601,11 @@ const Utilisateurs = () => {
                 disabled={loading}
                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
-                {loading ? "Traitement..." : "Désactiver"}
+                {loading ? (
+                  <InlineLoader text="Traitement..." size="sm" />
+                ) : (
+                  "Supprimer"
+                )}
               </button>
             </div>
           </div>

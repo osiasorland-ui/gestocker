@@ -80,10 +80,18 @@ CREATE TABLE public.factures (
 );
 CREATE TABLE public.fournisseurs (
   id_fournisseur uuid NOT NULL DEFAULT gen_random_uuid(),
-  nom_societe character varying NOT NULL,
-  telephone character varying,
-  adresse text,
+  nom_fournisseur character varying NOT NULL,
+  contact_telephone character varying NOT NULL,
+  adresse text NOT NULL,
   id_entreprise uuid NOT NULL,
+  contact_nom character varying NOT NULL DEFAULT ''::character varying,
+  contact_email character varying NOT NULL DEFAULT ''::character varying,
+  ville character varying NOT NULL DEFAULT ''::character varying,
+  pays character varying NOT NULL DEFAULT ''::character varying,
+  conditions_paiement text NOT NULL DEFAULT ''::text,
+  delai_livraison text NOT NULL DEFAULT ''::text,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  rating numeric CHECK (rating >= 1.0 AND rating <= 5.0),
   CONSTRAINT fournisseurs_pkey PRIMARY KEY (id_fournisseur),
   CONSTRAINT fournisseurs_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );
@@ -130,8 +138,11 @@ CREATE TABLE public.livreurs (
   date_embauche timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   id_entreprise uuid NOT NULL,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  id_user uuid,
   CONSTRAINT livreurs_pkey PRIMARY KEY (id_livreur),
-  CONSTRAINT livreurs_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
+  CONSTRAINT livreurs_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise),
+  CONSTRAINT fk_livreurs_utilisateur FOREIGN KEY (id_user) REFERENCES public.utilisateurs(id_user),
+  CONSTRAINT livreurs_id_user_fkey FOREIGN KEY (id_user) REFERENCES public.utilisateurs(id_user)
 );
 CREATE TABLE public.mouvements_stock (
   id_mvt uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -182,6 +193,17 @@ CREATE TABLE public.paiements (
   CONSTRAINT paiements_pkey PRIMARY KEY (id_paiement),
   CONSTRAINT paiements_new_id_facture_fkey FOREIGN KEY (id_facture) REFERENCES public.factures(id_facture),
   CONSTRAINT paiements_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
+);
+CREATE TABLE public.parametres_systeme (
+  id_parametre uuid NOT NULL DEFAULT gen_random_uuid(),
+  nom_parametre character varying NOT NULL,
+  valeur_parametre text,
+  description text,
+  id_entreprise uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT parametres_systeme_pkey PRIMARY KEY (id_parametre),
+  CONSTRAINT parametres_systeme_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );
 CREATE TABLE public.permissions (
   id_permission uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -256,15 +278,4 @@ CREATE TABLE public.utilisateurs (
   CONSTRAINT utilisateurs_pkey PRIMARY KEY (id_user),
   CONSTRAINT utilisateurs_new_id_role_fkey FOREIGN KEY (id_role) REFERENCES public.roles(id_role),
   CONSTRAINT utilisateurs_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
-);
-CREATE TABLE public.parametres_systeme (
-  id_parametre uuid NOT NULL DEFAULT gen_random_uuid(),
-  nom_parametre character varying NOT NULL,
-  valeur_parametre text,
-  description text,
-  id_entreprise uuid NOT NULL,
-  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT parametres_systeme_pkey PRIMARY KEY (id_parametre),
-  CONSTRAINT parametres_systeme_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );

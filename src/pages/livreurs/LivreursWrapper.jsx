@@ -1,8 +1,9 @@
 import React from "react";
 import Layout from "../../components/Layout";
+import Livreurs from "./Livreurs";
 import { useAuth } from "../../hooks/useAuthHook.js";
 
-const ParametresWrapper = ({ children }) => {
+const LivreursWrapper = () => {
   const { profile, signOut } = useAuth();
 
   const handleLogout = async () => {
@@ -11,9 +12,9 @@ const ParametresWrapper = ({ children }) => {
 
   return (
     <Layout profile={profile} onLogout={handleLogout}>
-      {children}
+      <Livreurs />
     </Layout>
   );
 };
 
-export default ParametresWrapper;
+export default LivreursWrapper;

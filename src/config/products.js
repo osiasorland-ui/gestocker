@@ -163,7 +163,7 @@ export const products = {
       // Formatter avec 6 chiffres, complété par des zéros
       const paddedNumber = nextNumber.toString().padStart(6, "0");
       return `PR${paddedNumber}`;
-    } catch (error) {
+    } catch {
       // En cas d'erreur, utiliser un timestamp comme fallback
       const timestamp = Date.now().toString().slice(-6);
       return `PR${timestamp}`;

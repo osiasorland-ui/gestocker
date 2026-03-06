@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../../hooks/useAuthHook.js";
 import { useNavigate } from "react-router-dom";
 import {
   Eye,

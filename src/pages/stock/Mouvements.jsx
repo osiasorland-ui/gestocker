@@ -16,7 +16,24 @@ import {
   products as productsService,
   warehouses as warehousesService,
 } from "../../config/supabase";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../../hooks/useAuthHook.js";
+
+// Import des composants UI
+import Card, {
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "../../components/ui/Card";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import Badge from "../../components/ui/Badge";
+import Loader, {
+  PageLoader,
+  TableLoader,
+  InlineLoader,
+  CardLoader,
+} from "../../components/ui/Loader";
 
 function Mouvements() {
   const { user } = useAuth();
@@ -260,14 +277,11 @@ function Mouvements() {
 
       {/* Mouvements Table */}
       {loading ? (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8">
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            <span className="ml-2 text-gray-600">
-              Chargement des mouvements...
-            </span>
-          </div>
-        </div>
+        <Card>
+          <CardContent>
+            <TableLoader text="Chargement des mouvements..." />
+          </CardContent>
+        </Card>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">

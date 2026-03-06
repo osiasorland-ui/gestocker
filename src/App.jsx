@@ -6,8 +6,8 @@ import {
 } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth.jsx";
 import Authentification from "./pages/Authentification";
-import DashboardWrapper from "./pages/DashboardWrapper";
-import Analyse from "./pages/Analyse";
+import DashboardWrapper from "./pages/dashboard/DashboardWrapper.jsx";
+import Analyse from "./pages/rapports/Analyse";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
 import Produits from "./pages/stock/Produits";
@@ -23,15 +23,16 @@ import Fournisseurs from "./pages/achats/Fournisseurs";
 import CommandesAchat from "./pages/achats/CommandesAchat";
 import Receptions from "./pages/achats/Receptions";
 import AchatsWrapper from "./pages/achats/AchatsWrapper";
-import Parametres from "./pages/Parametres";
 import Utilisateurs from "./pages/parametres/Utilisateurs";
 import Systeme from "./pages/parametres/Systeme";
 import Securite from "./pages/parametres/Securite";
 import Sauvegarde from "./pages/parametres/Sauvegarde";
 import Notifications from "./pages/parametres/Notifications";
 import ParametresWrapper from "./pages/parametres/ParametresWrapper";
-import Rapports from "./pages/Rapports";
+import Rapports from "./pages/rapports/Rapports.jsx";
 import Livreurs from "./pages/livreurs/Livreurs";
+import RapportsAnalyseWrapper from "./pages/rapports/RapportsAnalyseWrapper";
+import LivreursWrapper from "./pages/livreurs/LivreursWrapper";
 
 function App() {
   return (
@@ -49,12 +50,12 @@ function App() {
             }
           />
           <Route
-            path="/analyse"
+            path="/rapports/analyse"
             element={
               <ProtectedRoute>
-                <Layout>
+                <RapportsAnalyseWrapper>
                   <Analyse />
-                </Layout>
+                </RapportsAnalyseWrapper>
               </ProtectedRoute>
             }
           />
@@ -159,20 +160,12 @@ function App() {
             }
           />
           <Route
-            path="/parametres"
-            element={
-              <ProtectedRoute>
-                <Parametres />
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/parametres/utilisateurs"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ParametresWrapper>
                   <Utilisateurs />
-                </Layout>
+                </ParametresWrapper>
               </ProtectedRoute>
             }
           />
@@ -180,9 +173,9 @@ function App() {
             path="/parametres/systeme"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ParametresWrapper>
                   <Systeme />
-                </Layout>
+                </ParametresWrapper>
               </ProtectedRoute>
             }
           />
@@ -190,9 +183,9 @@ function App() {
             path="/parametres/securite"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ParametresWrapper>
                   <Securite />
-                </Layout>
+                </ParametresWrapper>
               </ProtectedRoute>
             }
           />
@@ -200,9 +193,9 @@ function App() {
             path="/parametres/sauvegarde"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ParametresWrapper>
                   <Sauvegarde />
-                </Layout>
+                </ParametresWrapper>
               </ProtectedRoute>
             }
           />
@@ -210,17 +203,9 @@ function App() {
             path="/parametres/notifications"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ParametresWrapper>
                   <Notifications />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <Parametres />
+                </ParametresWrapper>
               </ProtectedRoute>
             }
           />
@@ -228,9 +213,9 @@ function App() {
             path="/settings/utilisateurs"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ParametresWrapper>
                   <Utilisateurs />
-                </Layout>
+                </ParametresWrapper>
               </ProtectedRoute>
             }
           />
@@ -238,9 +223,9 @@ function App() {
             path="/settings/systeme"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ParametresWrapper>
                   <Systeme />
-                </Layout>
+                </ParametresWrapper>
               </ProtectedRoute>
             }
           />
@@ -248,9 +233,9 @@ function App() {
             path="/settings/securite"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ParametresWrapper>
                   <Securite />
-                </Layout>
+                </ParametresWrapper>
               </ProtectedRoute>
             }
           />
@@ -258,9 +243,9 @@ function App() {
             path="/settings/sauvegarde"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ParametresWrapper>
                   <Sauvegarde />
-                </Layout>
+                </ParametresWrapper>
               </ProtectedRoute>
             }
           />
@@ -268,9 +253,9 @@ function App() {
             path="/settings/notifications"
             element={
               <ProtectedRoute>
-                <Layout>
+                <ParametresWrapper>
                   <Notifications />
-                </Layout>
+                </ParametresWrapper>
               </ProtectedRoute>
             }
           />
@@ -278,19 +263,19 @@ function App() {
             path="/livreurs"
             element={
               <ProtectedRoute>
-                <Layout>
+                <LivreursWrapper>
                   <Livreurs />
-                </Layout>
+                </LivreursWrapper>
               </ProtectedRoute>
             }
           />
           <Route
-            path="/rapports"
+            path="/rapports/rapports-généraux"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <Rapports />
-                </Layout>
+                <RapportsAnalyseWrapper>
+                  <Rapports/>
+                </RapportsAnalyseWrapper>
               </ProtectedRoute>
             }
           />

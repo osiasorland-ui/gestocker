@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useAuth } from "../../hooks/useAuth";
+import React, { useState, useEffect, useCallback } from "react";
+import { useAuth } from "../../hooks/useAuthHook.js";
 import { useNotification } from "../../hooks/useNotification";
 import Notification from "../../components/Notification";
 import {
@@ -19,6 +19,23 @@ import {
   Warehouse,
 } from "lucide-react";
 
+// Import des composants UI
+import Card, {
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "../../components/ui/Card";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import Badge from "../../components/ui/Badge";
+import Loader, {
+  PageLoader,
+  TableLoader,
+  InlineLoader,
+  CardLoader,
+} from "../../components/ui/Loader";
+
 function Receptions() {
   const [receptions, setReceptions] = useState([]);
   const [commandes, setCommandes] = useState([]);
@@ -35,7 +52,7 @@ function Receptions() {
   const [notification, setNotification] = useState(null);
 
   const [formData, setFormData] = useState({
-    id_commande_achat: "",
+    id_commande: "",
     date_reception: "",
     id_entrepot: "",
     statut: "en_attente",
@@ -43,28 +60,41 @@ function Receptions() {
     articles_recus: [],
   });
 
-  const [articleForm, setArticleForm] = useState({
-    designation: "",
-    quantite_commandee: 0,
-    quantite_recue: "",
-    id_entrepot: "",
-    notes: "",
-  });
-
   const statuts = [
-    { value: "en_attente", label: "En attente", icon: Clock, color: "text-yellow-600" },
-    { value: "en_cours", label: "En cours", icon: Truck, color: "text-blue-600" },
-    { value: "terminee", label: "Terminée", icon: CheckCircle, color: "text-green-600" },
-    { value: "partielle", label: "Partielle", icon: Package, color: "text-orange-600" },
-    { value: "annulee", label: "Annulée", icon: XCircle, color: "text-red-600" },
+    {
+      value: "en_attente",
+      label: "En attente",
+      icon: Clock,
+      color: "text-yellow-600",
+    },
+    {
+      value: "en_cours",
+      label: "En cours",
+      icon: Truck,
+      color: "text-blue-600",
+    },
+    {
+      value: "terminee",
+      label: "Terminée",
+      icon: CheckCircle,
+      color: "text-green-600",
+    },
+    {
+      value: "partielle",
+      label: "Partielle",
+      icon: Package,
+      color: "text-orange-600",
+    },
+    {
+      value: "annulee",
+      label: "Annulée",
+      icon: XCircle,
+      color: "text-red-600",
+    },
   ];
 
   // Charger les données depuis la base de données
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!profile?.id_entreprise) return;
 
     try {
@@ -72,91 +102,11 @@ function Receptions() {
       setError("");
 
       // Simulation de chargement - à remplacer par l'appel API réel
-      const mockReceptions = [
-        {
-          id_reception: "1",
-          reference: "REC-2025-001",
-          id_commande_achat: "1",
-          commandes_achat: {
-            reference: "CA-2025-001",
-            fournisseurs: { nom_fournisseur: "TechSupply Africa" },
-          },
-          date_reception: "2025-01-20",
-          id_entrepot: "1",
-          entrepots: { nom_entrepot: "Entrepôt Principal" },
-          statut: "terminee",
-          notes: "Réception complète",
-          articles_recus: [
-            {
-              designation: "Ordinateur Portable",
-              quantite_commandee: 5,
-              quantite_recue: 5,
-              id_entrepot: "1",
-              notes: "Conformité vérifiée",
-            },
-            {
-              designation: "Souris sans fil",
-              quantite_commandee: 10,
-              quantite_recue: 8,
-              id_entrepot: "1",
-              notes: "2 manquantes",
-            },
-          ],
-          created_at: new Date().toISOString(),
-        },
-        {
-          id_reception: "2",
-          reference: "REC-2025-002",
-          id_commande_achat: "2",
-          commandes_achat: {
-            reference: "CA-2025-002",
-            fournisseurs: { nom_fournisseur: "Global Hardware Ltd" },
-          },
-          date_reception: "2025-01-18",
-          id_entrepot: "2",
-          entrepots: { nom_entrepot: "Entrepôt Secondaire" },
-          statut: "en_cours",
-          notes: "Réception en cours",
-          articles_recus: [
-            {
-              designation: "Papier A4",
-              quantite_commandee: 50,
-              quantite_recue: 30,
-              id_entrepot: "2",
-              notes: "20 restantes",
-            },
-          ],
-          created_at: new Date().toISOString(),
-        },
-      ];
+      const mockReceptions = [];
 
-      const mockCommandes = [
-        {
-          id_commande_achat: "1",
-          reference: "CA-2025-001",
-          fournisseurs: { nom_fournisseur: "TechSupply Africa" },
-          statut: "confirmee",
-          articles: [
-            { designation: "Ordinateur Portable", quantite: 5, prix_unitaire: 250000 },
-            { designation: "Souris sans fil", quantite: 10, prix_unitaire: 25000 },
-          ],
-        },
-        {
-          id_commande_achat: "2",
-          reference: "CA-2025-002",
-          fournisseurs: { nom_fournisseur: "Global Hardware Ltd" },
-          statut: "confirmee",
-          articles: [
-            { designation: "Papier A4", quantite: 50, prix_unitaire: 5000 },
-            { designation: "Stylos bleus", quantite: 100, prix_unitaire: 5000 },
-          ],
-        },
-      ];
+      const mockCommandes = [];
 
-      const mockEntrepots = [
-        { id_entrepot: "1", nom_entrepot: "Entrepôt Principal" },
-        { id_entrepot: "2", nom_entrepot: "Entrepôt Secondaire" },
-      ];
+      const mockEntrepots = [];
 
       setReceptions(mockReceptions);
       setCommandes(mockCommandes);
@@ -167,12 +117,18 @@ function Receptions() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile?.id_entreprise]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    loadData();
+  }, [profile?.id_entreprise]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredReceptions = receptions.filter(
     (reception) =>
       reception.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reception.commandes_achat?.fournisseurs?.nom_fournisseur.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      reception.commandes_achat?.fournisseurs?.nom_fournisseur
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
       reception.statut.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
@@ -194,7 +150,7 @@ function Receptions() {
       return;
     }
 
-    if (!formData.id_commande_achat) {
+    if (!formData.id_commande) {
       showError("Veuillez sélectionner une commande d'achat");
       return;
     }
@@ -216,8 +172,10 @@ function Receptions() {
 
     try {
       const receptionData = {
-        reference: editingReception ? editingReception.reference : generateReference(),
-        id_commande_achat: formData.id_commande_achat,
+        reference: editingReception
+          ? editingReception.reference
+          : generateReference(),
+        id_commande: formData.id_commande,
         date_reception: formData.date_reception,
         id_entrepot: formData.id_entrepot,
         statut: formData.statut,
@@ -232,7 +190,7 @@ function Receptions() {
         const updatedReceptions = receptions.map((r) =>
           r.id_reception === editingReception.id_reception
             ? { ...r, ...receptionData }
-            : r
+            : r,
         );
         setReceptions(updatedReceptions);
       } else {
@@ -240,8 +198,12 @@ function Receptions() {
         const newReception = {
           id_reception: Date.now().toString(),
           ...receptionData,
-          commandes_achat: commandes.find((c) => c.id_commande_achat === formData.id_commande_achat),
-          entrepots: entrepots.find((e) => e.id_entrepot === formData.id_entrepot),
+          commandes_achat: commandes.find(
+            (c) => c.id_commande_achat === formData.id_commande,
+          ),
+          entrepots: entrepots.find(
+            (e) => e.id_entrepot === formData.id_entrepot,
+          ),
           created_at: new Date().toISOString(),
         };
         setReceptions([...receptions, newReception]);
@@ -260,19 +222,12 @@ function Receptions() {
 
   const resetForm = () => {
     setFormData({
-      id_commande_achat: "",
+      id_commande: "",
       date_reception: "",
       id_entrepot: "",
       statut: "en_attente",
       notes: "",
       articles_recus: [],
-    });
-    setArticleForm({
-      designation: "",
-      quantite_commandee: 0,
-      quantite_recue: "",
-      id_entrepot: "",
-      notes: "",
     });
     setShowAddModal(false);
     setEditingReception(null);
@@ -306,7 +261,7 @@ function Receptions() {
   const handleEdit = (reception) => {
     setEditingReception(reception);
     setFormData({
-      id_commande_achat: reception.id_commande_achat,
+      id_commande: reception.id_commande_achat,
       date_reception: reception.date_reception,
       id_entrepot: reception.id_entrepot,
       statut: reception.statut,
@@ -317,11 +272,14 @@ function Receptions() {
   };
 
   const handleDelete = async (id_reception) => {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer cette réception ?")) return;
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cette réception ?"))
+      return;
 
     try {
       // Simulation de suppression - à remplacer par l'appel API réel
-      const updatedReceptions = receptions.filter((r) => r.id_reception !== id_reception);
+      const updatedReceptions = receptions.filter(
+        (r) => r.id_reception !== id_reception,
+      );
       setReceptions(updatedReceptions);
       showSuccess("Réception supprimée avec succès");
     } catch (err) {
@@ -339,10 +297,10 @@ function Receptions() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Réceptions
-          </h1>
-          <p className="text-gray-600">Gérez la réception des commandes d'achat</p>
+          <h1 className="text-2xl font-bold text-gray-900">Réceptions</h1>
+          <p className="text-gray-600">
+            Gérez la réception des commandes d'achat
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -356,10 +314,7 @@ function Receptions() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12">
-          <Package className="w-12 h-12 mx-auto mb-4 text-gray-300 animate-pulse" />
-          <p className="text-gray-500">Chargement des réceptions...</p>
-        </div>
+        <PageLoader text="Chargement des réceptions..." />
       ) : error ? (
         <div className="text-center py-12">
           <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-300" />
@@ -417,7 +372,10 @@ function Receptions() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredReceptions.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
+                      <td
+                        colSpan="7"
+                        className="px-6 py-12 text-center text-gray-500"
+                      >
                         <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                         <p>Aucune réception trouvée</p>
                       </td>
@@ -427,7 +385,10 @@ function Receptions() {
                       const statutInfo = getStatutInfo(reception.statut);
                       const StatutIcon = statutInfo.icon;
                       return (
-                        <tr key={reception.id_reception} className="hover:bg-gray-50">
+                        <tr
+                          key={reception.id_reception}
+                          className="hover:bg-gray-50"
+                        >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
                               {reception.reference}
@@ -440,13 +401,18 @@ function Receptions() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">
-                              {reception.commandes_achat?.fournisseurs?.nom_fournisseur}
+                              {
+                                reception.commandes_achat?.fournisseurs
+                                  ?.nom_fournisseur
+                              }
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-2 text-sm text-gray-900">
                               <Calendar className="w-4 h-4 text-gray-400" />
-                              {new Date(reception.date_reception).toLocaleDateString("fr-FR")}
+                              {new Date(
+                                reception.date_reception,
+                              ).toLocaleDateString("fr-FR")}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -456,7 +422,9 @@ function Receptions() {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className={`flex items-center gap-2 ${statutInfo.color}`}>
+                            <div
+                              className={`flex items-center gap-2 ${statutInfo.color}`}
+                            >
                               <StatutIcon className="w-4 h-4" />
                               <span className="text-sm font-medium">
                                 {statutInfo.label}
@@ -478,7 +446,9 @@ function Receptions() {
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handleDelete(reception.id_reception)}
+                                onClick={() =>
+                                  handleDelete(reception.id_reception)
+                                }
                                 className="text-red-600 hover:text-red-800"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -501,7 +471,9 @@ function Receptions() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">
-              {editingReception ? "Modifier la réception" : "Nouvelle réception"}
+              {editingReception
+                ? "Modifier la réception"
+                : "Nouvelle réception"}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -511,10 +483,13 @@ function Receptions() {
                   </label>
                   <select
                     required
-                    value={formData.id_commande_achat}
+                    value={formData.id_commande}
                     onChange={(e) => {
                       const commandeId = e.target.value;
-                      setFormData({ ...formData, id_commande_achat: commandeId });
+                      setFormData({
+                        ...formData,
+                        id_commande: commandeId,
+                      });
                       loadCommandeArticles(commandeId);
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
@@ -523,8 +498,12 @@ function Receptions() {
                     {commandes
                       .filter((c) => c.statut === "confirmee")
                       .map((commande) => (
-                        <option key={commande.id_commande_achat} value={commande.id_commande_achat}>
-                          {commande.reference} - {commande.fournisseurs?.nom_fournisseur}
+                        <option
+                          key={commande.id_commande_achat}
+                          value={commande.id_commande_achat}
+                        >
+                          {commande.reference} -{" "}
+                          {commande.fournisseurs?.nom_fournisseur}
                         </option>
                       ))}
                   </select>
@@ -543,7 +522,10 @@ function Receptions() {
                   >
                     <option value="">Sélectionner un entrepôt</option>
                     {entrepots.map((entrepot) => (
-                      <option key={entrepot.id_entrepot} value={entrepot.id_entrepot}>
+                      <option
+                        key={entrepot.id_entrepot}
+                        value={entrepot.id_entrepot}
+                      >
                         {entrepot.nom_entrepot}
                       </option>
                     ))}
@@ -561,7 +543,10 @@ function Receptions() {
                     required
                     value={formData.date_reception}
                     onChange={(e) =>
-                      setFormData({ ...formData, date_reception: e.target.value })
+                      setFormData({
+                        ...formData,
+                        date_reception: e.target.value,
+                      })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   />
@@ -627,7 +612,11 @@ function Receptions() {
                             max={article.quantite_commandee}
                             value={article.quantite_recue}
                             onChange={(e) =>
-                              updateArticleRecu(index, "quantite_recue", e.target.value)
+                              updateArticleRecu(
+                                index,
+                                "quantite_recue",
+                                e.target.value,
+                              )
                             }
                             className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                           />
@@ -706,23 +695,32 @@ function Receptions() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-sm text-gray-500">Commande:</span>
-                  <div className="font-medium">{selectedReception.commandes_achat?.reference}</div>
+                  <div className="font-medium">
+                    {selectedReception.commandes_achat?.reference}
+                  </div>
                 </div>
                 <div>
                   <span className="text-sm text-gray-500">Fournisseur:</span>
                   <div className="font-medium">
-                    {selectedReception.commandes_achat?.fournisseurs?.nom_fournisseur}
+                    {
+                      selectedReception.commandes_achat?.fournisseurs
+                        ?.nom_fournisseur
+                    }
                   </div>
                 </div>
                 <div>
                   <span className="text-sm text-gray-500">Date réception:</span>
                   <div className="font-medium">
-                    {new Date(selectedReception.date_reception).toLocaleDateString("fr-FR")}
+                    {new Date(
+                      selectedReception.date_reception,
+                    ).toLocaleDateString("fr-FR")}
                   </div>
                 </div>
                 <div>
                   <span className="text-sm text-gray-500">Entrepôt:</span>
-                  <div className="font-medium">{selectedReception.entrepots?.nom_entrepot}</div>
+                  <div className="font-medium">
+                    {selectedReception.entrepots?.nom_entrepot}
+                  </div>
                 </div>
                 <div>
                   <span className="text-sm text-gray-500">Statut:</span>
@@ -753,28 +751,33 @@ function Receptions() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {selectedReception.articles_recus?.map((article, index) => (
-                        <tr key={index}>
-                          <td className="px-4 py-2">{article.designation}</td>
-                          <td className="px-4 py-2">{article.quantite_commandee}</td>
-                          <td className="px-4 py-2">
-                            <span
-                              className={`font-medium ${
-                                article.quantite_recue === article.quantite_commandee
-                                  ? "text-green-600"
-                                  : article.quantite_recue > 0
-                                  ? "text-orange-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {article.quantite_recue}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2 text-sm text-gray-600">
-                            {article.notes || "-"}
-                          </td>
-                        </tr>
-                      ))}
+                      {selectedReception.articles_recus?.map(
+                        (article, index) => (
+                          <tr key={index}>
+                            <td className="px-4 py-2">{article.designation}</td>
+                            <td className="px-4 py-2">
+                              {article.quantite_commandee}
+                            </td>
+                            <td className="px-4 py-2">
+                              <span
+                                className={`font-medium ${
+                                  article.quantite_recue ===
+                                  article.quantite_commandee
+                                    ? "text-green-600"
+                                    : article.quantite_recue > 0
+                                      ? "text-orange-600"
+                                      : "text-red-600"
+                                }`}
+                              >
+                                {article.quantite_recue}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {article.notes || "-"}
+                            </td>
+                          </tr>
+                        ),
+                      )}
                     </tbody>
                   </table>
                 </div>

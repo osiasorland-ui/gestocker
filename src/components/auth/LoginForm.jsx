@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../../hooks/useAuthHook.js";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react";
 
@@ -27,8 +27,27 @@ const LoginForm = ({ onToggleMode }) => {
     e.preventDefault();
     setError("");
 
-    if (!formData.email || !formData.password) {
-      setError("Veuillez remplir tous les champs");
+    // Validation améliorée
+    if (!formData.email) {
+      setError("L'email est requis");
+      return;
+    }
+
+    if (!formData.password) {
+      setError("Le mot de passe est requis");
+      return;
+    }
+
+    // Validation format email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError("Veuillez entrer un email valide");
+      return;
+    }
+
+    // Validation longueur mot de passe
+    if (formData.password.length < 6) {
+      setError("Le mot de passe doit contenir au moins 6 caractères");
       return;
     }
 
