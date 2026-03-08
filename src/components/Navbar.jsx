@@ -81,7 +81,9 @@ const Navbar = () => {
             <div className="hidden md:flex items-center space-x-3">
               <div className="text-right">
                 <p className="text-sm font-medium text-gray-900">
-                  {user?.nom || "Utilisateur"}
+                  {user?.prenom && user?.nom
+                    ? `${user.prenom} ${user.nom}`
+                    : user?.nom || "Utilisateur"}
                 </p>
                 <p className="text-xs text-gray-500">
                   {profile?.entreprises?.nom_commercial || "Administrateur"}
@@ -89,7 +91,9 @@ const Navbar = () => {
               </div>
               <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
                 <span className="text-sm font-medium text-gray-600">
-                  {user?.nom?.charAt(0)?.toUpperCase() || "U"}
+                  {user?.prenom && user?.nom
+                    ? `${user.prenom.charAt(0)}${user.nom.charAt(0)}`
+                    : user?.nom?.charAt(0)?.toUpperCase() || "U"}
                 </span>
               </div>
             </div>
@@ -116,7 +120,9 @@ const Navbar = () => {
                 </div>
               </div>
               <div className="px-3 py-2 text-sm text-gray-600">
-                {user?.nom || "Utilisateur"}
+                {user?.prenom && user?.nom
+                  ? `${user.prenom} ${user.nom}`
+                  : user?.nom || "Utilisateur"}
               </div>
               <button
                 onClick={handleSignOut}

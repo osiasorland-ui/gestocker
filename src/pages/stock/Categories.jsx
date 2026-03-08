@@ -3,7 +3,15 @@ import { categories } from "../../config/supabase";
 import { useAuth } from "../../hooks/useAuthHook.js";
 import { useNotification } from "../../hooks/useNotification";
 import Notification from "../../components/Notification";
-import { Plus, Search, Edit2, Trash2, Folder, Package } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Edit2,
+  Trash2,
+  Folder,
+  Package,
+  Tag,
+} from "lucide-react";
 
 import Loader, {
   PageLoader,
@@ -148,7 +156,7 @@ function Categories() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mx-auto p-10">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -164,6 +172,44 @@ function Categories() {
           <Plus className="w-4 h-4" />
           Ajouter une catégorie
         </button>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-green-100 rounded-full">
+              <Tag className="h-6 w-6 text-green-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">
+                Total Catégories
+              </p>
+              <p className="text-2xl font-bold text-gray-900">
+                {categoriesList.length}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-blue-100 rounded-full">
+              <Package className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">
+                Total Produits
+              </p>
+              <p className="text-2xl font-bold text-gray-900">
+                {categoriesList.reduce(
+                  (total, cat) => total + (cat.nombre_produits || 0),
+                  0,
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {loading ? (

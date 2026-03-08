@@ -1,6 +1,24 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+CREATE TABLE public.admin_approval_notifications (
+  id_notification uuid NOT NULL DEFAULT gen_random_uuid(),
+  id_super_user uuid NOT NULL,
+  id_admin uuid NOT NULL,
+  id_user_cible uuid NOT NULL,
+  action_type text NOT NULL CHECK (action_type = ANY (ARRAY['MODIFICATION_ROLE'::text, 'SUPPRESSION_USER'::text])),
+  details jsonb,
+  statut text DEFAULT 'EN_ATTENTE'::text CHECK (statut = ANY (ARRAY['EN_ATTENTE'::text, 'APPROUVE'::text, 'REFUSE'::text])),
+  message text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  expires_at timestamp with time zone DEFAULT (now() + '24:00:00'::interval),
+  processed_at timestamp with time zone,
+  processed_by uuid,
+  CONSTRAINT admin_approval_notifications_pkey PRIMARY KEY (id_notification),
+  CONSTRAINT admin_approval_notifications_id_super_user_fkey FOREIGN KEY (id_super_user) REFERENCES public.utilisateurs(id_user),
+  CONSTRAINT admin_approval_notifications_id_admin_fkey FOREIGN KEY (id_admin) REFERENCES public.utilisateurs(id_user),
+  CONSTRAINT admin_approval_notifications_id_user_cible_fkey FOREIGN KEY (id_user_cible) REFERENCES public.utilisateurs(id_user)
+);
 CREATE TABLE public.categories (
   id_categorie uuid NOT NULL DEFAULT gen_random_uuid(),
   nom_categorie character varying NOT NULL,
@@ -51,8 +69,10 @@ CREATE TABLE public.entrepots (
   adresse text,
   id_entreprise uuid NOT NULL,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  id_gerant uuid,
   CONSTRAINT entrepots_pkey PRIMARY KEY (id_entrepot),
-  CONSTRAINT entrepots_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
+  CONSTRAINT entrepots_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise),
+  CONSTRAINT entrepots_id_gerant_fkey FOREIGN KEY (id_gerant) REFERENCES public.utilisateurs(id_user)
 );
 CREATE TABLE public.entreprises (
   id_entreprise uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -139,9 +159,7 @@ CREATE TABLE public.livreurs (
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   id_user uuid,
   CONSTRAINT livreurs_pkey PRIMARY KEY (id_livreur),
-  CONSTRAINT livreurs_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise),
-  CONSTRAINT fk_livreurs_utilisateur FOREIGN KEY (id_user) REFERENCES public.utilisateurs(id_user),
-  CONSTRAINT livreurs_id_user_fkey FOREIGN KEY (id_user) REFERENCES public.utilisateurs(id_user)
+  CONSTRAINT livreurs_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );
 CREATE TABLE public.mouvements_stock (
   id_mvt uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -156,7 +174,6 @@ CREATE TABLE public.mouvements_stock (
   CONSTRAINT mouvements_stock_pkey PRIMARY KEY (id_mvt),
   CONSTRAINT mouvements_stock_new_id_produit_fkey FOREIGN KEY (id_produit) REFERENCES public.produits(id_produit),
   CONSTRAINT mouvements_stock_new_id_entrepot_fkey FOREIGN KEY (id_entrepot) REFERENCES public.entrepots(id_entrepot),
-  CONSTRAINT mouvements_stock_new_id_user_fkey FOREIGN KEY (id_user) REFERENCES public.utilisateurs(id_user),
   CONSTRAINT mouvements_stock_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );
 CREATE TABLE public.notifications (
@@ -167,7 +184,6 @@ CREATE TABLE public.notifications (
   id_user uuid NOT NULL,
   id_entreprise uuid NOT NULL,
   CONSTRAINT notifications_pkey PRIMARY KEY (id_notif),
-  CONSTRAINT notifications_new_id_user_fkey FOREIGN KEY (id_user) REFERENCES public.utilisateurs(id_user),
   CONSTRAINT notifications_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );
 CREATE TABLE public.otp_codes (
@@ -193,6 +209,20 @@ CREATE TABLE public.paiements (
   CONSTRAINT paiements_new_id_facture_fkey FOREIGN KEY (id_facture) REFERENCES public.factures(id_facture),
   CONSTRAINT paiements_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );
+CREATE TABLE public.parametres_unifies (
+  id_parametre uuid NOT NULL DEFAULT gen_random_uuid(),
+  id_entreprise uuid NOT NULL,
+  categorie character varying NOT NULL,
+  nom_parametre character varying NOT NULL,
+  valeur_parametre text,
+  type_parametre character varying DEFAULT 'text'::character varying,
+  description text,
+  est_actif boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT parametres_unifies_pkey PRIMARY KEY (id_parametre),
+  CONSTRAINT parametres_unifies_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
+);
 CREATE TABLE public.permissions (
   id_permission uuid NOT NULL DEFAULT gen_random_uuid(),
   nom_action character varying NOT NULL,
@@ -212,6 +242,38 @@ CREATE TABLE public.produits (
   CONSTRAINT produits_new_id_categorie_fkey FOREIGN KEY (id_categorie) REFERENCES public.categories(id_categorie),
   CONSTRAINT produits_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise),
   CONSTRAINT produits_new_id_entrepot_fkey FOREIGN KEY (id_entrepot) REFERENCES public.entrepots(id_entrepot)
+);
+CREATE TABLE public.rapports_comptables (
+  id_rapport uuid NOT NULL DEFAULT gen_random_uuid(),
+  titre character varying NOT NULL CHECK (length(TRIM(BOTH FROM titre)) > 0),
+  type_rapport character varying NOT NULL CHECK (type_rapport::text = ANY (ARRAY['BILAN'::text, 'RESULTAT'::text, 'TVA'::text, 'TRESORERIE'::text, 'AUTRE'::text])),
+  description text,
+  periode_debut timestamp with time zone NOT NULL,
+  periode_fin timestamp with time zone NOT NULL,
+  date_generation timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  date_modification timestamp with time zone,
+  montant_total numeric DEFAULT 0,
+  statut character varying DEFAULT 'BROUILLON'::text CHECK (statut::text = ANY (ARRAY['BROUILLON'::text, 'GENERE'::text, 'VALIDE'::text, 'ARCHIVE'::text])),
+  contenu_json jsonb,
+  fichier_path character varying,
+  id_entreprise uuid NOT NULL,
+  id_user uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT rapports_comptables_pkey PRIMARY KEY (id_rapport),
+  CONSTRAINT rapports_comptables_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
+);
+CREATE TABLE public.role_change_notifications (
+  id_notification uuid NOT NULL DEFAULT gen_random_uuid(),
+  id_user uuid NOT NULL,
+  message text NOT NULL,
+  ancien_role_id uuid,
+  nouveau_role_id uuid,
+  est_lu boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  expires_at timestamp with time zone DEFAULT (now() + '7 days'::interval),
+  CONSTRAINT role_change_notifications_pkey PRIMARY KEY (id_notification),
+  CONSTRAINT role_change_notifications_id_user_fkey FOREIGN KEY (id_user) REFERENCES public.utilisateurs(id_user)
 );
 CREATE TABLE public.role_permission (
   id_role uuid NOT NULL,
@@ -250,20 +312,21 @@ CREATE TABLE public.transferts (
   CONSTRAINT transferts_new_id_produit_fkey FOREIGN KEY (id_produit) REFERENCES public.produits(id_produit),
   CONSTRAINT transferts_new_id_entrepot_source_fkey FOREIGN KEY (id_entrepot_source) REFERENCES public.entrepots(id_entrepot),
   CONSTRAINT transferts_new_id_entrepot_dest_fkey FOREIGN KEY (id_entrepot_dest) REFERENCES public.entrepots(id_entrepot),
-  CONSTRAINT transferts_new_id_user_fkey FOREIGN KEY (id_user) REFERENCES public.utilisateurs(id_user),
   CONSTRAINT transferts_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );
 CREATE TABLE public.utilisateurs (
   id_user uuid NOT NULL DEFAULT gen_random_uuid(),
-  nom character varying NOT NULL,
-  email character varying NOT NULL UNIQUE,
+  nom character varying NOT NULL CHECK (length(TRIM(BOTH FROM nom)) >= 2),
+  prenom character varying NOT NULL CHECK (length(TRIM(BOTH FROM prenom)) >= 2),
+  email character varying NOT NULL UNIQUE CHECK (email::text ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'::text),
+  telephone character varying CHECK (telephone IS NULL OR telephone::text ~* '^[\+]?[0-9\s\-\(\)]{8,20}$'::text),
   mot_de_passe text NOT NULL,
   id_role uuid NOT NULL,
   id_entreprise uuid NOT NULL,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  mot_de_passe_hash text,
+  statut character varying NOT NULL DEFAULT 'actif'::character varying CHECK (statut::text = ANY (ARRAY['actif'::character varying::text, 'inactif'::character varying::text, 'suspendu'::character varying::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT utilisateurs_pkey PRIMARY KEY (id_user),
-  CONSTRAINT utilisateurs_new_id_role_fkey FOREIGN KEY (id_role) REFERENCES public.roles(id_role),
-  CONSTRAINT utilisateurs_new_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
+  CONSTRAINT utilisateurs_id_role_fkey FOREIGN KEY (id_role) REFERENCES public.roles(id_role),
+  CONSTRAINT utilisateurs_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
 );

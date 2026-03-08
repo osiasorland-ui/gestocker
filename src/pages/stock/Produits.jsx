@@ -1,6 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import { products, warehouses, categories } from "../../config/supabase";
 import { useAuth } from "../../hooks/useAuthHook.js";
+import { useDevise } from "../../hooks/useDevise.js";
 import { useNotification } from "../../hooks/useNotification";
 import Notification from "../../components/Notification";
 import {
@@ -12,6 +19,9 @@ import {
   AlertCircle,
   Upload,
   Download,
+  TrendingUp,
+  Building,
+  Tag,
 } from "lucide-react";
 
 // Import des composants UI
@@ -32,6 +42,9 @@ import Loader, {
 } from "../../components/ui/Loader";
 
 function Produits() {
+  const { profile } = useAuth();
+  const { formatMontant } = useDevise();
+  const { notify } = useNotification();
   const [produits, setProduits] = useState([]);
   const [categoriesList, setCategoriesList] = useState([]);
   const [warehousesList, setWarehousesList] = useState([]);
@@ -42,9 +55,8 @@ function Produits() {
   const [csvFile, setCsvFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const { profile } = useAuth();
-  const { showSuccess, showError } = useNotification();
-  const [notification, setNotification] = useState(null);
+  const showErrorRef = useRef(notify);
+  showErrorRef.current = notify;
 
   const [formData, setFormData] = useState({
     designation: "",
@@ -67,17 +79,6 @@ function Produits() {
     return `${prefix}-${timestamp}-${random}`;
   };
 
-  // Formatter le prix en FCFA
-  const formatPrice = (price) => {
-    const numPrice = parseFloat(price) || 0;
-    return new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency: "XOF",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(numPrice);
-  };
-
   // Générer une référence à partir du produit pour affichage
   const getProductReference = (produit) => {
     // Si le SKU commence par PRD, c'est un SKU aléatoire, on génère une référence basée sur l'index
@@ -96,11 +97,7 @@ function Produits() {
   };
 
   // Charger les données depuis la base de données
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!profile?.id_entreprise) return;
 
     try {
@@ -126,12 +123,20 @@ function Produits() {
       setCategoriesList(categoriesData || []);
       setWarehousesList(warehousesData || []);
     } catch (err) {
-      setError(err.message || "Erreur lors du chargement des données");
-      showError("Erreur lors du chargement des produits");
+      const errorMessage =
+        err.message || "Erreur lors du chargement des données";
+      setError(errorMessage);
+      // Utiliser la référence pour éviter la dépendance cyclique
+      showErrorRef.current("Erreur lors du chargement des produits");
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile?.id_entreprise]); // ❌ Retirer notify.error des dépendances
+
+  // Charger les données depuis la base de données
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Générer un SKU automatiquement lors de l'ouverture du modal
   useEffect(() => {
@@ -140,43 +145,45 @@ function Produits() {
     }
   }, [showAddModal, editingProduit]);
 
-  const filteredProduits = produits.filter(
-    (produit) =>
-      produit.designation.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      produit.sku.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const filteredProduits = useMemo(() => {
+    return produits.filter(
+      (produit) =>
+        produit.designation.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        produit.sku.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+  }, [produits, searchTerm]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!profile?.id_entreprise) {
-      showError("Utilisateur non connecté ou entreprise non trouvée");
+      notify.error("Utilisateur non connecté ou entreprise non trouvée");
       return;
     }
 
     if (!formData.designation?.trim()) {
-      showError("La désignation est obligatoire");
+      notify.error("La désignation est obligatoire");
       return;
     }
 
     if (!formData.prix_unitaire || formData.prix_unitaire <= 0) {
-      showError("Le prix unitaire doit être supérieur à 0");
+      notify.error("Le prix unitaire doit être supérieur à 0");
       return;
     }
 
     if (!formData.quantite_stock || formData.quantite_stock < 0) {
-      showError("La quantité en stock doit être supérieure ou égale à 0");
+      notify.error("La quantité en stock doit être supérieure ou égale à 0");
       return;
     }
 
     if (!formData.id_entrepot) {
-      showError("Veuillez sélectionner un entrepôt");
+      notify.error("Veuillez sélectionner un entrepôt");
       return;
     }
 
     try {
       // Générer la référence du produit au format PR000001
-      const productReference = await generateProductReference();
+      // const productReference = await generateProductReference();
 
       // Sauvegarder l'ancienne catégorie pour la mise à jour des compteurs
       const oldCategoryId = editingProduit?.id_categorie;
@@ -225,13 +232,13 @@ function Produits() {
       await loadData(); // Recharger les données
       resetForm();
 
-      showSuccess(
+      notify.success(
         editingProduit
           ? "Produit modifié avec succès"
           : "Produit ajouté avec succès",
       );
     } catch (err) {
-      showError(err.message || "Erreur lors de la sauvegarde du produit");
+      notify.error(err.message || "Erreur lors de la sauvegarde du produit");
     }
   };
 
@@ -259,13 +266,13 @@ function Produits() {
     ) {
       setCsvFile(file);
     } else {
-      showError("Veuillez sélectionner un fichier CSV ou Excel valide");
+      notify.error("Veuillez sélectionner un fichier CSV ou Excel valide");
     }
   };
 
   const handleImportCSV = () => {
     if (!csvFile) {
-      showError("Veuillez sélectionner un fichier");
+      notify.error("Veuillez sélectionner un fichier");
       return;
     }
 
@@ -274,7 +281,7 @@ function Produits() {
     reader.onload = async (e) => {
       const text = e.target.result;
       const lines = text.split("\n");
-      const headers = lines[0].split(",");
+      // const headers = lines[0].split(",");
 
       const newProducts = [];
       for (let i = 1; i < lines.length; i++) {
@@ -298,7 +305,7 @@ function Produits() {
       setProduits([...produits, ...newProducts]);
       setShowImportModal(false);
       setCsvFile(null);
-      showSuccess(`${newProducts.length} produits importés avec succès`);
+      notify.success(`${newProducts.length} produits importés avec succès`);
     };
     reader.readAsText(csvFile);
   };
@@ -348,14 +355,14 @@ function Produits() {
       }
 
       await loadData(); // Recharger les données
-      showSuccess("Produit supprimé avec succès");
+      notify.success("Produit supprimé avec succès");
     } catch (err) {
-      showError(err.message || "Erreur lors de la suppression du produit");
+      notify.error(err.message || "Erreur lors de la suppression du produit");
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mx-auto p-10">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -404,6 +411,54 @@ function Produits() {
         </div>
       ) : (
         <>
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <div className="p-3 bg-blue-100 rounded-full">
+                  <Package className="h-6 w-6 text-blue-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-500">
+                    Total Produits
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {produits.length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <div className="p-3 bg-green-100 rounded-full">
+                  <Tag className="h-6 w-6 text-green-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-500">
+                    Catégories
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {categoriesList.length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
+                <div className="p-3 bg-purple-100 rounded-full">
+                  <Building className="h-6 w-6 text-purple-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-500">Entrepôts</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {warehousesList.length}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -488,7 +543,7 @@ function Produits() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatPrice(produit.prix_unitaire)}
+                          {formatMontant(produit.prix_unitaire)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex items-center gap-2">
@@ -689,11 +744,7 @@ function Produits() {
         </div>
       )}
 
-      {/* Notification */}
-      <Notification
-        notification={notification}
-        onClose={() => setNotification(null)}
-      />
+      <Notification />
     </div>
   );
 }

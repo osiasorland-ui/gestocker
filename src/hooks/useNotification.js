@@ -1,44 +1,14 @@
-import { useState } from 'react';
+import { useContext } from "react";
+import { NotificationContext } from "../contexts/NotificationContextProvider.jsx";
 
 export const useNotification = () => {
-  const [notification, setNotification] = useState(null);
-
-  const showNotification = (message, type = 'info') => {
-    setNotification({ message, type });
-    
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
-      setNotification(null);
-    }, 3000);
-  };
-
-  const showSuccess = (message) => {
-    showNotification(message, 'success');
-  };
-
-  const showError = (message) => {
-    showNotification(message, 'error');
-  };
-
-  const showWarning = (message) => {
-    showNotification(message, 'warning');
-  };
-
-  const showInfo = (message) => {
-    showNotification(message, 'info');
-  };
-
-  const hideNotification = () => {
-    setNotification(null);
-  };
-
-  return {
-    notification,
-    showNotification,
-    showSuccess,
-    showError,
-    showWarning,
-    showInfo,
-    hideNotification
-  };
+  const context = useContext(NotificationContext);
+  if (!context) {
+    throw new Error(
+      "useNotification must be used within a NotificationProvider",
+    );
+  }
+  return context;
 };
+
+export default useNotification;

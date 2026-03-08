@@ -15,6 +15,7 @@ import {
   XCircle,
   Clock,
   Send,
+  Receipt,
 } from "lucide-react";
 
 // Import des composants UI
@@ -123,7 +124,7 @@ const Factures = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mx-auto p-10">
       {/* En-tête */}
       <div className="flex justify-between items-center">
         <div>
@@ -265,100 +266,124 @@ const Factures = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredFactures.map((facture) => (
-                <tr key={facture.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {facture.reference}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {facture.commande}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {facture.client}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {facture.email}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-1 text-sm text-gray-900">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      {facture.date_emission}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
-                      <DollarSign className="w-4 h-4 text-gray-400" />
-                      {facture.montant.toLocaleString()} FCFA
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
-                        <DollarSign className="w-4 h-4 text-gray-400" />
-                        {facture.montant_paye.toLocaleString()} FCFA
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full"
-                          style={{
-                            width: `${getPaymentProgress(facture.montant, facture.montant_paye)}%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(facture.statut)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setSelectedFacture(facture)}
-                        className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
-                        title="Voir les détails"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleEditFacture(facture)}
-                        className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
-                        title="Modifier"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDownloadFacture(facture)}
-                        className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
-                        title="Télécharger PDF"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleSendFacture(facture)}
-                        className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
-                        title="Envoyer par email"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteFacture(facture.id)}
-                        className="p-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+              {filteredFactures.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan="7"
+                    className="px-6 py-12 text-center text-gray-500"
+                  >
+                    <Receipt className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-lg font-medium text-gray-900 mb-2">
+                      Aucune facture trouvée
+                    </p>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Commencez par ajouter une nouvelle facture
+                    </p>
+                    <button
+                      onClick={handleAddFacture}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Nouvelle facture
+                    </button>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredFactures.map((facture) => (
+                  <tr key={facture.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {facture.reference}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {facture.commande}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {facture.client}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {facture.email}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-sm text-gray-900">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        {facture.date_emission}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
+                        <DollarSign className="w-4 h-4 text-gray-400" />
+                        {facture.montant.toLocaleString()} FCFA
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
+                          <DollarSign className="w-4 h-4 text-gray-400" />
+                          {facture.montant_paye.toLocaleString()} FCFA
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-blue-600 h-2 rounded-full"
+                            style={{
+                              width: `${getPaymentProgress(facture.montant, facture.montant_paye)}%`,
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getStatusBadge(facture.statut)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSelectedFacture(facture)}
+                          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                          title="Voir les détails"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEditFacture(facture)}
+                          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                          title="Modifier"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDownloadFacture(facture)}
+                          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                          title="Télécharger PDF"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleSendFacture(facture)}
+                          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                          title="Envoyer par email"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteFacture(facture.id)}
+                          className="p-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

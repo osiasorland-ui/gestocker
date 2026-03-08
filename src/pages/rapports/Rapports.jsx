@@ -1,20 +1,29 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FileText,
   Download,
   Calendar,
   TrendingUp,
   TrendingDown,
-  Users,
-  Package,
   DollarSign,
   Filter,
   Search,
   BarChart3,
   PieChart,
-  Activity,
+  Receipt,
+  CreditCard,
+  Wallet,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  ArrowUpRight,
+  ArrowDownRight,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "../../config/supabase";
+import { useAuth } from "../../hooks/useAuthHook.js";
 
 // Import des composants UI
 import Card, {
@@ -26,148 +35,152 @@ import Card, {
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import Badge from "../../components/ui/Badge";
-import Loader, { PageLoader, CardLoader } from "../../components/ui/Loader";
+import Loader, {
+  PageLoader,
+  CardLoader,
+  InlineLoader,
+} from "../../components/ui/Loader";
 
 const Rapports = () => {
+  const { profile, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [searchTerm, setSearchTerm] = useState("");
   const [entrepriseId, setEntrepriseId] = useState(null);
-  const [statistiques, setStatistiques] = useState({
-    totalRapports: 0,
-    rapportsCeMois: 0,
-    rapportsTelecharges: 0,
-    rapportsEnAttente: 0,
+  const [rapportsComptables, setRapportsComptables] = useState([]);
+  const [indicateursFinanciers, setIndicateursFinanciers] = useState({
+    chiffreAffaires: 0,
+    depenses: 0,
+    beneficeNet: 0,
+    facturesEnAttente: 0,
+    facturesPayees: 0,
+    creancesClients: 0,
+    dettesFournisseurs: 0,
+    tresorerie: 0,
   });
-  const [reportsData, setReportsData] = useState({
-    ventes: 0,
-    stock: 0,
-    clients: 0,
-    financier: 0,
-  });
-  const [recentReports, setRecentReports] = useState([]);
 
-  const chargerDonnees = useCallback(async () => {
+  // Mettre à jour l'ID d'entreprise quand le profil change
+  useEffect(() => {
+    if (profile?.id_entreprise && profile.id_entreprise !== entrepriseId) {
+      setEntrepriseId(profile.id_entreprise);
+    }
+  }, [profile?.id_entreprise, entrepriseId]);
+
+  const chargerDonneesComptables = useCallback(async () => {
+    if (!entrepriseId) return;
+
     try {
       setLoading(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+
+      if (!profile) {
         console.error("Utilisateur non connecté");
         return;
       }
 
-      // Récupérer l'ID de l'entreprise
-      const { data: userData, error: userError } = await supabase
-        .from("utilisateurs")
-        .select("id_entreprise")
-        .eq("id_user", user.id)
-        .single();
-
-      if (userError || !userData) {
-        console.error(
-          "Erreur lors de la récupération de l'entreprise:",
-          userError,
-        );
-        return;
-      }
-
-      const entId = userData.id_entreprise;
+      const entId = entrepriseId;
       setEntrepriseId(entId);
 
       // Calculer les dates selon la période
       const dates = getDatesPeriode(selectedPeriod);
 
-      // Charger les données pour les statistiques
-      const [commandesData, stocksData, clientsData, livraisonsData] =
+      // Charger les données comptables réelles
+      const [facturesData, commandesData, paiementsData, depensesData] =
         await Promise.all([
+          // Factures (revenus)
+          supabase
+            .from("factures")
+            .select("*, commandes!inner(id_entreprise, date_commande)")
+            .eq("commandes.id_entreprise", entId)
+            .gte("date_facturation", dates.debut)
+            .lte("date_facturation", dates.fin),
+
+          // Commandes pour le calcul du chiffre d'affaires
           supabase
             .from("commandes")
             .select("*, factures(montant_ttc)")
             .eq("id_entreprise", entId)
+            .eq("type_commande", "VENTE")
             .gte("date_commande", dates.debut)
             .lte("date_commande", dates.fin),
 
-          supabase.from("stocks").select("*").eq("id_entreprise", entId),
-
-          supabase.from("clients").select("*").eq("id_entreprise", entId),
-
+          // Paiements reçus
           supabase
-            .from("livraisons")
-            .select("*")
-            .eq("id_entreprise", entId)
-            .gte("date_livraison", dates.debut)
-            .lte("date_livraison", dates.fin),
+            .from("paiements")
+            .select("*, factures!inner(id_entreprise)")
+            .eq("factures.id_entreprise", entId)
+            .gte("date_paiement", dates.debut)
+            .lte("date_paiement", dates.fin),
+
+          // Mouvements de stock (dépenses)
+          supabase
+            .from("mouvements_stock")
+            .select("*, produits!inner(id_entreprise, prix_unitaire)")
+            .eq("produits.id_entreprise", entId)
+            .eq("type_mvt", "ENTREE")
+            .gte("date_mvt", dates.debut)
+            .lte("date_mvt", dates.fin),
         ]);
 
-      // Calculer les statistiques
-      const totalVentes = commandesData?.reduce(
+      // Calculer les indicateurs financiers
+      const chiffreAffaires = (commandesData?.data || []).reduce(
         (sum, cmd) => sum + (cmd.factures?.montant_ttc || 0),
         0,
       );
-      const totalStock = stocksData?.reduce(
-        (sum, stock) => sum + stock.quantite_disponible,
+
+      const paiementsRecus = (paiementsData?.data || []).reduce(
+        (sum, p) => sum + (p.montant_verse || 0),
         0,
       );
-      const totalClients = clientsData?.length || 0;
-      const totalLivraisons = livraisons?.length || 0;
 
-      // Mettre à jour les données des rapports
-      setReportsData({
-        ventes: commandesData?.length || 0,
-        stock: totalStock,
-        clients: totalClients,
-        financier: totalVentes,
+      const depensesStock = (depensesData?.data || []).reduce(
+        (sum, mvt) => sum + mvt.quantite * (mvt.produits?.prix_unitaire || 0),
+        0,
+      );
+
+      const facturesEnAttente = (facturesData?.data || []).filter(
+        (f) => !paiementsData?.data?.some((p) => p.id_facture === f.id_facture),
+      ).length;
+
+      const facturesPayees = (facturesData?.data || []).filter((f) =>
+        paiementsData?.data?.some((p) => p.id_facture === f.id_facture),
+      ).length;
+
+      setIndicateursFinanciers({
+        chiffreAffaires,
+        depenses: depensesStock,
+        beneficeNet: chiffreAffaires - depensesStock,
+        facturesEnAttente,
+        facturesPayees,
+        creancesClients: chiffreAffaires - paiementsRecus,
+        dettesFournisseurs: 0, // À calculer selon les achats fournisseurs
+        tresorerie: paiementsRecus - depensesStock,
       });
 
-      // Simuler des rapports récents basés sur les données réelles
-      const simulatedReports = [
-        {
-          id: 1,
-          name:
-            "Rapport des ventes - " + new Date().toLocaleDateString("fr-FR"),
-          type: "Ventes",
-          date: new Date().toLocaleDateString("fr-FR"),
-          size: "2.3 MB",
-          status: "completed",
-        },
-        {
-          id: 2,
-          name: "État du stock - " + new Date().toLocaleDateString("fr-FR"),
-          type: "Stock",
-          date: new Date().toLocaleDateString("fr-FR"),
-          size: "1.8 MB",
-          status: "completed",
-        },
-        {
-          id: 3,
-          name: "Analyse clients - " + new Date().toLocaleDateString("fr-FR"),
-          type: "Clients",
-          date: new Date(Date.now() - 86400000).toLocaleDateString("fr-FR"),
-          size: "1.2 MB",
-          status: "completed",
-        },
-      ];
-      setRecentReports(simulatedReports);
+      // Charger les rapports depuis la base de données
+      const { data: rapportsData, error: rapportsError } = await supabase
+        .from("rapports_comptables")
+        .select("*")
+        .eq("id_entreprise", entId)
+        .order("date_generation", { ascending: false });
 
-      // Mettre à jour les statistiques
-      setStatistiques({
-        totalRapports: simulatedReports.length,
-        rapportsCeMois: simulatedReports.length,
-        rapportsTelecharges: Math.floor(simulatedReports.length * 0.7),
-        rapportsEnAttente: 0,
-      });
+      if (rapportsError) {
+        console.error("Erreur lors du chargement des rapports:", rapportsError);
+      }
+
+      setRapportsComptables(rapportsData || []);
     } catch (error) {
-      console.error("Erreur lors du chargement des données:", error);
+      console.error("Erreur lors du chargement des données comptables:", error);
     } finally {
       setLoading(false);
     }
-  }, [selectedPeriod]);
+  }, [selectedPeriod, profile, entrepriseId]);
 
   useEffect(() => {
-    chargerDonnees();
-  }, [chargerDonnees]);
+    if (entrepriseId) {
+      chargerDonneesComptables();
+    }
+  }, [entrepriseId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getDatesPeriode = (periode) => {
     const maintenant = new Date();
@@ -197,440 +210,792 @@ const Rapports = () => {
     };
   };
 
-  const generateReport = async (reportType) => {
-    if (!entrepriseId) return;
+  const getPeriodeLibelle = (periode) => {
+    const labels = {
+      week: "Cette semaine",
+      month: "Ce mois",
+      quarter: "Ce trimestre",
+      year: "Cette année",
+    };
+    return labels[periode] || "Ce mois";
+  };
+
+  const genererRapportComptable = async (typeRapport) => {
+    if (!entrepriseId || !profile) return;
 
     try {
-      console.log(
-        `Génération du rapport ${reportType} pour l'entreprise ${entrepriseId}`,
-      );
+      setLoading(true);
+      console.log(`Génération du rapport comptable: ${typeRapport}`);
 
-      // Logique de génération selon le type
-      switch (reportType) {
-        case "ventes":
-          await generateVentesReport();
+      const dates = getDatesPeriode(selectedPeriod);
+      let rapportData = {};
+
+      // Préparer les données du rapport selon le type
+      switch (typeRapport) {
+        case "bilan":
+          rapportData = await preparerDonneesBilan(dates);
           break;
-        case "stock":
-          await generateStockReport();
+        case "resultat":
+          rapportData = await preparerDonneesResultat(dates);
           break;
-        case "clients":
-          await generateClientsReport();
+        case "tva":
+          rapportData = await preparerDonneesTVA(dates);
           break;
-        case "financier":
-          await generateFinancierReport();
+        case "tresorerie":
+          rapportData = await preparerDonneesTresorerie(dates);
           break;
       }
 
+      // Sauvegarder le rapport dans la base de données
+      const { data: nouveauRapport, error: insertError } = await supabase
+        .from("rapports_comptables")
+        .insert({
+          titre: `${rapportData.titre} - ${new Date().toLocaleDateString("fr-FR")}`,
+          type_rapport: rapportData.type.toUpperCase(),
+          description: rapportData.description,
+          periode_debut: dates.debut,
+          periode_fin: dates.fin,
+          montant_total: rapportData.montant,
+          statut: "GENERE",
+          contenu_json: rapportData.contenu,
+          id_entreprise: entrepriseId,
+          id_user: profile.id_user,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("Erreur lors de la sauvegarde du rapport:", insertError);
+        throw insertError;
+      }
+
+      console.log("Rapport généré et sauvegardé:", nouveauRapport);
+
       // Recharger les données
-      await chargerDonnees();
+      await chargerDonneesComptables();
     } catch (error) {
       console.error("Erreur lors de la génération du rapport:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const generateVentesReport = async () => {
-    const dates = getDatesPeriode(selectedPeriod);
-    const { data } = await supabase
+  const modifierRapport = (rapport) => {
+    // Rediriger vers la page de création avec les données du rapport
+    navigate("/rapports/create", {
+      state: {
+        rapport: rapport,
+        mode: "edit",
+      },
+    });
+  };
+
+  const supprimerRapport = async (rapport) => {
+    if (
+      !confirm(
+        `Êtes-vous sûr de vouloir supprimer le rapport "${rapport.titre}" ?`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const { error } = await supabase
+        .from("rapports_comptables")
+        .delete()
+        .eq("id_rapport", rapport.id_rapport);
+
+      if (error) {
+        console.error("Erreur lors de la suppression:", error);
+        alert("Erreur lors de la suppression du rapport");
+        return;
+      }
+
+      console.log("Rapport supprimé avec succès");
+      await chargerDonneesComptables();
+    } catch (error) {
+      console.error("Erreur lors de la suppression:", error);
+      alert("Erreur lors de la suppression du rapport");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const preparerDonneesBilan = async (dates) => {
+    const { data: factures } = await supabase
+      .from("factures")
+      .select("*, commandes!inner(id_entreprise, date_commande)")
+      .eq("commandes.id_entreprise", entrepriseId)
+      .gte("date_facturation", dates.debut)
+      .lte("date_facturation", dates.fin);
+
+    const { data: commandes } = await supabase
       .from("commandes")
-      .select("*, factures(montant_ttc), clients(nom, prenom)")
+      .select("*, factures(montant_ttc)")
       .eq("id_entreprise", entrepriseId)
       .eq("type_commande", "VENTE")
       .gte("date_commande", dates.debut)
       .lte("date_commande", dates.fin);
 
-    console.log("Rapport ventes généré avec", data?.length || 0, "commandes");
-  };
-
-  const generateStockReport = async () => {
-    const { data } = await supabase
-      .from("stocks")
-      .select("*, produits(designation), entrepots(nom_entrepot)")
-      .eq("id_entreprise", entrepriseId);
-
-    console.log(
-      "Rapport stock généré avec",
-      data?.length || 0,
-      "produits en stock",
+    const montant = (commandes || []).reduce(
+      (sum, cmd) => sum + (cmd.factures?.montant_ttc || 0),
+      0,
     );
+
+    return {
+      titre: "Bilan comptable",
+      type: "Bilan",
+      description: "État financier patrimonial de l'entreprise",
+      montant,
+      contenu: {
+        actif: {
+          creancesClients: montant,
+          tresorerie: montant * 0.7,
+        },
+        passif: {
+          capital: montant * 0.5,
+          resultats: montant * 0.2,
+        },
+        factures: factures || [],
+        commandes: commandes || [],
+      },
+    };
   };
 
-  const generateClientsReport = async () => {
-    const { data } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("id_entreprise", entrepriseId);
+  const preparerDonneesResultat = async (dates) => {
+    const { data: commandes } = await supabase
+      .from("commandes")
+      .select("*, factures(montant_ttc)")
+      .eq("id_entreprise", entrepriseId)
+      .eq("type_commande", "VENTE")
+      .gte("date_commande", dates.debut)
+      .lte("date_commande", dates.fin);
 
-    console.log("Rapport clients généré avec", data?.length || 0, "clients");
+    const { data: mouvements } = await supabase
+      .from("mouvements_stock")
+      .select("*, produits!inner(id_entreprise, prix_unitaire)")
+      .eq("produits.id_entreprise", entrepriseId)
+      .eq("type_mvt", "ENTREE")
+      .gte("date_mvt", dates.debut)
+      .lte("date_mvt", dates.fin);
+
+    const revenus = (commandes || []).reduce(
+      (sum, cmd) => sum + (cmd.factures?.montant_ttc || 0),
+      0,
+    );
+
+    const depenses = (mouvements || []).reduce(
+      (sum, mvt) => sum + mvt.quantite * (mvt.produits?.prix_unitaire || 0),
+      0,
+    );
+
+    return {
+      titre: "Compte de résultat",
+      type: "Resultat",
+      description: "Analyse des revenus et dépenses",
+      montant: revenus - depenses,
+      contenu: {
+        revenus,
+        depenses,
+        benefice: revenus - depenses,
+        commandes: commandes || [],
+        mouvements: mouvements || [],
+      },
+    };
   };
 
-  const generateFinancierReport = async () => {
-    const dates = getDatesPeriode(selectedPeriod);
-    const { data } = await supabase
+  const preparerDonneesTVA = async (dates) => {
+    const { data: factures } = await supabase
       .from("factures")
-      .select("*, commandes(date_commande)")
+      .select("montant_ttc")
       .eq("id_entreprise", entrepriseId)
       .gte("date_facturation", dates.debut)
       .lte("date_facturation", dates.fin);
 
-    console.log("Rapport financier généré avec", data?.length || 0, "factures");
+    const montantHT = (factures || []).reduce(
+      (sum, f) => sum + (f.montant_ttc || 0),
+      0,
+    );
+
+    const tvaCollectee = montantHT * 0.18;
+
+    return {
+      titre: "Déclaration TVA",
+      type: "TVA",
+      description: "Rapport de TVA collectée et déductible",
+      montant: tvaCollectee,
+      contenu: {
+        montantHT,
+        tvaCollectee,
+        tvaDeductible: tvaCollectee * 0.3,
+        tvaAPayer: tvaCollectee * 0.7,
+        factures: factures || [],
+      },
+    };
   };
 
-  const downloadReport = (report) => {
-    console.log("Téléchargement du rapport:", report.name);
+  const preparerDonneesTresorerie = async (dates) => {
+    const { data: paiements } = await supabase
+      .from("paiements")
+      .select("montant_verse, date_paiement, mode_paiement")
+      .eq("id_entreprise", entrepriseId)
+      .gte("date_paiement", dates.debut)
+      .lte("date_paiement", dates.fin);
+
+    const { data: depenses } = await supabase
+      .from("mouvements_stock")
+      .select("*, produits!inner(id_entreprise, prix_unitaire)")
+      .eq("produits.id_entreprise", entrepriseId)
+      .eq("type_mvt", "ENTREE")
+      .gte("date_mvt", dates.debut)
+      .lte("date_mvt", dates.fin);
+
+    const encaissements = (paiements || []).reduce(
+      (sum, p) => sum + (p.montant_verse || 0),
+      0,
+    );
+
+    const sorties = (depenses || []).reduce(
+      (sum, mvt) => sum + mvt.quantite * (mvt.produits?.prix_unitaire || 0),
+      0,
+    );
+
+    return {
+      titre: "Rapport Trésorerie",
+      type: "Tresorerie",
+      description: "Suivi des flux de trésorerie",
+      montant: encaissements - sorties,
+      contenu: {
+        encaissements,
+        sorties,
+        solde: encaissements - sorties,
+        paiements: paiements || [],
+        depenses: depenses || [],
+      },
+    };
+  };
+
+  const telechargerRapport = (rapport) => {
+    console.log("Téléchargement du rapport:", rapport.nom);
     // Logique de téléchargement
   };
 
-  const exportAllReports = async () => {
-    console.log("Exportation de tous les rapports...");
-    // Logique d'export
-  };
-
-  const reportTypes = [
+  const typesRapportsComptables = [
     {
-      id: "ventes",
-      title: "Rapport des Ventes",
-      description: "Analyse des ventes par période",
-      icon: TrendingUp,
-      color: "blue",
+      id: "bilan",
+      titre: "Bilan Comptable",
+      description: "État financier patrimonial de l'entreprise",
+      icone: Wallet,
+      couleur: "blue",
     },
     {
-      id: "stock",
-      title: "Rapport de Stock",
-      description: "État des stocks et mouvements",
-      icon: Package,
-      color: "green",
+      id: "resultat",
+      titre: "Compte de Résultat",
+      description: "Analyse des revenus et dépenses",
+      icone: TrendingUp,
+      couleur: "green",
     },
     {
-      id: "clients",
-      title: "Rapport Clients",
-      description: "Analyse de la clientèle",
-      icon: Users,
-      color: "purple",
+      id: "tva",
+      titre: "Déclaration TVA",
+      description: "Rapport de TVA collectée et déductible",
+      icone: Receipt,
+      couleur: "purple",
     },
     {
-      id: "financier",
-      title: "Rapport Financier",
-      description: "Bilan financier mensuel",
-      icon: DollarSign,
-      color: "yellow",
+      id: "tresorerie",
+      titre: "Rapport Trésorerie",
+      description: "Suivi des flux de trésorerie",
+      icone: CreditCard,
+      couleur: "yellow",
     },
   ];
 
-  const periods = [
+  const periodes = [
     { value: "week", label: "Cette semaine" },
     { value: "month", label: "Ce mois" },
     { value: "quarter", label: "Ce trimestre" },
     { value: "year", label: "Cette année" },
   ];
 
-  if (loading) {
+  const handleDownloadRapport = (rapport) => {
+    console.log("Téléchargement du rapport:", rapport.titre);
+    telechargerRapport(rapport);
+  };
+
+  const handleGenerateRapport = (rapportId) => {
+    console.log("Modification du rapport:", rapportId);
+    const rapport = rapportsComptables.find((r) => r.id_rapport === rapportId);
+    if (rapport) {
+      modifierRapport(rapport);
+    }
+  };
+
+  const handleDeleteRapport = (rapport) => {
+    console.log("Suppression du rapport:", rapport.titre);
+    supprimerRapport(rapport);
+  };
+
+  if (authLoading || loading) {
     return <PageLoader text="Chargement des rapports..." />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Rapports et Analyses
-              </h1>
-              <p className="mt-2 text-gray-600">
-                Générez et consultez vos rapports d'activité
-              </p>
+    <div className="p-10 mx-auto">
+      {/* Loader */}
+      {loading && <PageLoader text="Chargement des rapports..." />}
+      {!loading && (
+        <>
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  Rapports Comptables
+                </h1>
+                <p className="mt-2 text-gray-600">
+                  Générez et consultez vos états financiers
+                </p>
+              </div>
+              <div className="mt-4 sm:mt-0 flex space-x-3">
+                <Button
+                  onClick={() => navigate("/rapports/create")}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Nouveau rapport
+                </Button>
+                <Button
+                  icon={Download}
+                  className="w-full sm:w-auto"
+                  onClick={() => console.log("Export de tous les rapports")}
+                >
+                  Exporter tout
+                </Button>
+              </div>
             </div>
-            <div className="mt-4 sm:mt-0">
-              <Button
-                icon={Download}
-                className="w-full sm:w-auto"
-                onClick={exportAllReports}
+          </div>
+
+          {/* Indicateurs Financiers */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <Card hover>
+              <CardContent className="flex items-center">
+                <div className="shrink-0">
+                  <DollarSign className="h-8 w-8 text-green-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">
+                    Chiffre d'affaires
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {indicateursFinanciers.chiffreAffaires.toLocaleString(
+                      "fr-FR",
+                    )}{" "}
+                    FCFA
+                  </p>
+                  <div className="flex items-center mt-1">
+                    <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
+                    <span className="text-xs text-green-600">+12.5%</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card hover>
+              <CardContent className="flex items-center">
+                <div className="shrink-0">
+                  <TrendingDown className="h-8 w-8 text-red-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Dépenses</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {indicateursFinanciers.depenses.toLocaleString("fr-FR")}{" "}
+                    FCFA
+                  </p>
+                  <div className="flex items-center mt-1">
+                    <ArrowDownRight className="h-4 w-4 text-red-500 mr-1" />
+                    <span className="text-xs text-red-600">+8.2%</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card hover>
+              <CardContent className="flex items-center">
+                <div className="shrink-0">
+                  <Wallet className="h-8 w-8 text-blue-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">
+                    Bénéfice net
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {indicateursFinanciers.beneficeNet.toLocaleString("fr-FR")}{" "}
+                    FCFA
+                  </p>
+                  <div className="flex items-center mt-1">
+                    <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
+                    <span className="text-xs text-green-600">+18.7%</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card hover>
+              <CardContent className="flex items-center">
+                <div className="shrink-0">
+                  <CreditCard className="h-8 w-8 text-purple-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">
+                    Trésorerie
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {indicateursFinanciers.tresorerie.toLocaleString("fr-FR")}{" "}
+                    FCFA
+                  </p>
+                  <div className="flex items-center mt-1">
+                    <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
+                    <span className="text-xs text-green-600">+5.3%</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Filtres */}
+          <div className="flex gap-4 mb-6">
+            <div className="flex-1">
+              <Input
+                type="text"
+                placeholder="Rechercher un rapport comptable..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                icon={Search}
+              />
+            </div>
+            <div className="flex gap-2">
+              <select
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
               >
-                Exporter tout
+                {periodes.map((periode) => (
+                  <option key={periode.value} value={periode.value}>
+                    {periode.label}
+                  </option>
+                ))}
+              </select>
+              <Button variant="outline" icon={Filter}>
+                Filtres
               </Button>
             </div>
           </div>
-        </div>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card hover>
-            <CardContent className="flex items-center">
-              <div className="shrink-0">
-                <FileText className="h-8 w-8 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  Total rapports
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {statistiques.totalRapports}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card hover>
-            <CardContent className="flex items-center">
-              <div className="shrink-0">
-                <Activity className="h-8 w-8 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Ce mois</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {statistiques.rapportsCeMois}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card hover>
-            <CardContent className="flex items-center">
-              <div className="shrink-0">
-                <Download className="h-8 w-8 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Téléchargés</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {statistiques.rapportsTelecharges}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card hover>
-            <CardContent className="flex items-center">
-              <div className="shrink-0">
-                <Calendar className="h-8 w-8 text-yellow-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">En attente</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {statistiques.rapportsEnAttente}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Search and Filters */}
-
-        <div className="flex gap-4 mb-6">
-          <div className="flex-1">
-            <Input
-              type="text"
-              placeholder="Rechercher un rapport..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              icon={Search}
-            />
-          </div>
-          <div className="flex gap-2">
-            <select
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            >
-              {periods.map((period) => (
-                <option key={period.value} value={period.value}>
-                  {period.label}
-                </option>
-              ))}
-            </select>
-            <Button variant="outline" icon={Filter}>
-              Filtres
-            </Button>
-          </div>
-        </div>
-
-        {/* Report Types */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Types de rapports
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {reportTypes.map((report) => {
-              const Icon = report.icon;
-              return (
-                <Card
-                  key={report.id}
-                  hover
-                  className="cursor-pointer"
-                  onClick={() => generateReport(report.id)}
-                >
-                  <CardContent>
-                    <div className="flex items-center mb-4">
-                      <div className={`p-2 rounded-lg bg-${report.color}-100`}>
-                        <Icon className={`h-6 w-6 text-${report.color}-600`} />
+          {/* Types de Rapports Comptables */}
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Rapports Comptables
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {typesRapportsComptables.map((rapport) => {
+                const Icon = rapport.icone;
+                return (
+                  <Card
+                    key={rapport.id}
+                    hover
+                    className="cursor-pointer"
+                    onClick={() => genererRapportComptable(rapport.id)}
+                  >
+                    <CardContent>
+                      <div className="flex items-center mb-4">
+                        <div
+                          className={`p-2 rounded-lg bg-${rapport.couleur}-100`}
+                        >
+                          <Icon
+                            className={`h-6 w-6 text-${rapport.couleur}-600`}
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      {report.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 mb-4">
-                      {report.description}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-lg font-bold text-gray-900">
-                        {reportsData[report.id]}{" "}
-                        {report.id === "financier"
-                          ? "FCFA"
-                          : report.id === "stock"
-                            ? "unités"
-                            : "enregistrements"}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        {rapport.titre}
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        {rapport.description}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-500">
+                          {getPeriodeLibelle(selectedPeriod)}
+                        </span>
+                        <Badge variant="outline" className="text-xs">
+                          Disponible
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Recent Reports */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Rapports récents</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Nom du rapport
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Taille
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Statut
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {recentReports.length === 0 ? (
+          {/* Tableau des Rapports Comptables */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Rapports générés</CardTitle>
+                <p className="text-sm text-gray-500 mt-1">
+                  Historique de vos états financiers
+                </p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Badge variant="outline" className="text-xs">
+                  {rapportsComptables.length} rapport
+                  {rapportsComptables.length > 1 ? "s" : ""}
+                </Badge>
+                <Button variant="outline" size="sm" icon={Download}>
+                  Tout exporter
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
                     <tr>
-                      <td
-                        colSpan="6"
-                        className="px-6 py-12 text-center text-gray-500"
-                      >
-                        <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                        <p>Aucun rapport trouvé</p>
-                      </td>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Rapport
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Période
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Généré le
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
-                  ) : (
-                    recentReports.map((report) => (
-                      <tr key={report.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <FileText className="w-4 h-4 text-gray-400 mr-3" />
-                            <div className="text-sm font-medium text-gray-900">
-                              {report.name}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge variant="default" className="text-xs">
-                            {report.type}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {report.date}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {report.size}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge
-                            variant={
-                              report.status === "completed"
-                                ? "success"
-                                : "warning"
-                            }
-                            className="text-xs"
-                          >
-                            {report.status === "completed"
-                              ? "Terminé"
-                              : "En cours"}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex items-center justify-end space-x-2">
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {rapportsComptables.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="px-6 py-12 text-center">
+                          <div className="flex flex-col items-center">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                              Aucun rapport comptable disponible
+                            </h3>
+                            <p className="text-sm text-gray-500 max-w-md mb-6">
+                              Générez vos premiers états financiers en cliquant
+                              sur les types de rapports ci-dessus. Vos rapports
+                              apparaîtront ici avec toutes les détails
+                              nécessaires.
+                            </p>
                             <Button
-                              variant="ghost"
-                              size="sm"
-                              icon={Download}
-                              onClick={() => downloadReport(report)}
-                            />
-                            <Button variant="ghost" size="sm" icon={FileText} />
+                              onClick={() => navigate("/rapports/create")}
+                              className="bg-blue-600 hover:bg-blue-700"
+                            >
+                              Générer un rapport
+                            </Button>
                           </div>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-        {/* Charts Section */}
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Évolution des rapports</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64 flex flex-col items-center justify-center bg-gray-50 rounded-lg">
-                <div className="text-center">
-                  <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500 mb-2">
-                    Graphique d'évolution des rapports
-                  </p>
-                  <p className="text-sm text-gray-400">
-                    {statistiques.totalRapports} rapports générés ce mois
-                  </p>
-                </div>
+                    ) : (
+                      rapportsComptables
+                        .filter(
+                          (rapport) =>
+                            rapport.titre
+                              .toLowerCase()
+                              .includes(searchTerm.toLowerCase()) ||
+                            rapport.type_rapport
+                              .toLowerCase()
+                              .includes(searchTerm.toLowerCase()),
+                        )
+                        .map((rapport) => (
+                          <tr
+                            key={rapport.id_rapport}
+                            className="hover:bg-gray-50 transition-colors"
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-start">
+                                <div className="shrink-0">
+                                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                    <FileText className="w-5 h-5 text-blue-600" />
+                                  </div>
+                                </div>
+                                <div className="ml-4">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {rapport.titre}
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    ID: #
+                                    {rapport.id_rapport
+                                      .toString()
+                                      .padStart(6, "0")}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center">
+                                <div
+                                  className={`w-2 h-2 rounded-full mr-2 ${
+                                    rapport.type_rapport === "BILAN"
+                                      ? "bg-blue-500"
+                                      : rapport.type_rapport === "RESULTAT"
+                                        ? "bg-green-500"
+                                        : rapport.type_rapport === "TVA"
+                                          ? "bg-purple-500"
+                                          : "bg-yellow-500"
+                                  }`}
+                                />
+                                <span className="text-sm font-medium text-gray-900">
+                                  {rapport.type_rapport}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-sm text-gray-900">
+                                {new Date(
+                                  rapport.periode_debut,
+                                ).toLocaleDateString("fr-FR")}{" "}
+                                -{" "}
+                                {new Date(
+                                  rapport.periode_fin,
+                                ).toLocaleDateString("fr-FR")}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Période fiscale
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-sm text-gray-900">
+                                {new Date(
+                                  rapport.date_generation,
+                                ).toLocaleDateString("fr-FR")}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {new Date(
+                                  rapport.date_generation,
+                                ).toLocaleTimeString("fr-FR", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="text-sm font-semibold text-gray-900">
+                                {rapport.montant_total.toLocaleString("fr-FR")}{" "}
+                                FCFA
+                              </div>
+                              <div className="text-xs text-gray-500">HT</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center">
+                                <div
+                                  className={`w-2 h-2 rounded-full mr-2 ${
+                                    rapport.statut === "GENERE"
+                                      ? "bg-green-500"
+                                      : rapport.statut === "BROUILLON"
+                                        ? "bg-yellow-500"
+                                        : "bg-blue-500"
+                                  }`}
+                                />
+                                <div>
+                                  <Badge
+                                    variant={
+                                      rapport.statut === "GENERE"
+                                        ? "success"
+                                        : rapport.statut === "BROUILLON"
+                                          ? "warning"
+                                          : "info"
+                                    }
+                                    className="text-xs font-medium"
+                                  >
+                                    {rapport.statut === "GENERE"
+                                      ? "Généré"
+                                      : rapport.statut === "BROUILLON"
+                                        ? "Brouillon"
+                                        : "Validé"}
+                                  </Badge>
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {rapport.statut === "GENERE"
+                                      ? "Prêt au téléchargement"
+                                      : rapport.statut === "BROUILLON"
+                                        ? "En cours de rédaction"
+                                        : "Rapport validé"}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center justify-center space-x-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  icon={Download}
+                                  onClick={() => handleDownloadRapport(rapport)}
+                                  className="text-gray-600 hover:text-blue-600 hover:bg-blue-50"
+                                  title="Télécharger le rapport"
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  icon={Edit}
+                                  onClick={() =>
+                                    handleGenerateRapport(rapport.id)
+                                  }
+                                  className="text-gray-600 hover:text-green-600 hover:bg-green-50"
+                                  title="Modifier le rapport"
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  icon={Trash2}
+                                  onClick={() => handleDeleteRapport(rapport)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  title="Supprimer le rapport"
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Répartition par type</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64 flex flex-col items-center justify-center bg-gray-50 rounded-lg">
-                <div className="text-center">
-                  <PieChart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500 mb-2">
-                    Répartition des types de rapports
-                  </p>
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p>Ventes: {reportsData.ventes} enregistrements</p>
-                    <p>Stock: {reportsData.stock} unités</p>
-                    <p>Clients: {reportsData.clients} clients</p>
-                    <p>
-                      Financier: {reportsData.financier.toLocaleString("fr-FR")}{" "}
-                      FCFA
-                    </p>
+              {rapportsComptables.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between text-sm text-gray-500">
+                    <div>
+                      Affichage de {rapportsComptables.length} rapport
+                      {rapportsComptables.length > 1 ? "s" : ""}
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <span>
+                        Dernière mise à jour:{" "}
+                        {new Date().toLocaleTimeString("fr-FR")}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => chargerDonneesComptables()}
+                        className="text-blue-600 hover:text-blue-700"
+                      >
+                        Actualiser
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 };

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import React from "react";
 import { auth, users, supabase } from "../config/supabase";
 import { AuthContext } from "./authContext";
 import {
@@ -62,7 +61,10 @@ export const AuthProvider = ({ children }) => {
 
       if (profileError) {
         console.error("Erreur lors du chargement du profil:", profileError);
-        return;
+        // Si l'erreur est "No rows found" (PGRST116), ne pas afficher d'erreur critique
+        if (profileError.code !== "PGRST116") {
+          return;
+        }
       }
 
       if (profileData) {
@@ -83,103 +85,16 @@ export const AuthProvider = ({ children }) => {
             permissionsError,
           );
         }
+      } else {
+        console.log("Aucun profil trouvé pour l'ID:", userId);
+        // Ne pas considérer comme une erreur critique
       }
     } catch (error) {
       console.error("Erreur dans loadUserProfile:", error);
     }
   };
 
-  // Migrer la session locale vers Supabase
-  const migrateLocalSessionToSupabase = async (localSession) => {
-    try {
-      console.log("Migration de la session locale vers Supabase...");
-
-      if (!localSession?.profile?.id_user) {
-        console.log("Pas de profil local à migrer");
-        return false;
-      }
-
-      // DÉSACTIVÉ: La migration cause des problèmes de rate limiting
-      // En développement, on utilise toujours le fallback local
-      console.log(
-        "Migration désactivée en développement, utilisation du fallback local",
-      );
-      return false;
-
-      /*
-      // Code de migration désactivé pour éviter les rate limits
-      // Gardé comme référence pour une future implémentation plus robuste
-
-      // Vérifier si nous avons déjà tenté la migration récemment pour éviter les boucles
-      const migrationKey = `migration_attempt_${localSession.profile.id_user}`;
-      const lastAttempt = localStorage.getItem(migrationKey);
-      if (lastAttempt) {
-        const timeSinceLastAttempt = Date.now() - parseInt(lastAttempt);
-        // Attendre au moins 5 minutes entre les tentatives
-        if (timeSinceLastAttempt < 5 * 60 * 1000) {
-          console.log("Migration récemment tentée, utilisation du fallback local");
-          return false;
-        }
-      }
-
-      // Marquer cette tentative
-      localStorage.setItem(migrationKey, Date.now().toString());
-
-      // Créer une session Supabase avec l'ID utilisateur
-      const { error } = await supabase.auth.setSession({
-        access_token: "migrated_token_" + localSession.profile.id_user,
-        refresh_token: "migrated_refresh_" + localSession.profile.id_user,
-      });
-
-      if (error) {
-        console.log("Erreur migration, tentative avec signUp...");
-
-        // Alternative: créer un utilisateur Supabase temporaire
-        const tempEmail = `${localSession.profile.id_user}@migrated.local`;
-        const tempPassword = `temp_${localSession.profile.id_user}`;
-
-        const { data: signUpData, error: signUpError } =
-          await supabase.auth.signUp({
-            email: tempEmail,
-            password: tempPassword,
-            options: {
-              data: {
-                custom_user_id: localSession.profile.id_user,
-                original_email: localSession.profile.email,
-                migrated: true,
-              },
-            },
-          });
-
-        // Si rate limit ou autre erreur, ne pas retenter
-        if (signUpError) {
-          console.error("Échec migration permanent:", signUpError.message);
-          // Marquer comme échec permanent pour cette session
-          localStorage.setItem(`${migrationKey}_failed`, 'true');
-          return false;
-        }
-
-        if (!signUpError && signUpData.user) {
-          console.log("Session migrée avec succès via signUp");
-          // Nettoyer les marqueurs d'échec
-          localStorage.removeItem(`${migrationKey}_failed`);
-          return true;
-        }
-
-        console.error("Échec migration inattendu");
-        return false;
-      }
-
-      console.log("Session migrée avec succès");
-      // Nettoyer les marqueurs d'échec
-      localStorage.removeItem(`${migrationKey}_failed`);
-      return true;
-      */
-    } catch (error) {
-      console.error("Erreur migration session:", error);
-      return false;
-    }
-  };
+  // Autres fonctions d'authentification...
 
   // Initialiser l'authentification
   useEffect(() => {
@@ -315,7 +230,22 @@ export const AuthProvider = ({ children }) => {
       console.error("Type d'erreur:", typeof error);
       console.error("Message d'erreur:", error.message);
       console.error("Erreur complète:", error);
-      return { success: false, error: error.message };
+
+      // Gérer le cas où l'erreur n'a pas de message
+      const errorMessage =
+        error.message || error.error || "Erreur de connexion inconnue";
+
+      // Ajout de logging détaillé pour le debug
+      console.error("=== DÉTAILS ERREUR COMPLETS ===");
+      console.error("Error object:", error);
+      console.error("Error type:", typeof error);
+      console.error("Error keys:", Object.keys(error || {}));
+      console.error("Error message:", error.message);
+      console.error("Error error:", error.error);
+      console.error("Error details:", error.details);
+      console.error("================================");
+
+      return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
     }

@@ -30,8 +30,7 @@ export const movements = {
           `
           *,
           produits (designation, sku),
-          entrepots (nom_entrepot),
-          utilisateurs (nom, email)
+          entrepots (nom_entrepot)
         `,
         )
         .eq("id_entreprise", entrepriseId)
@@ -53,8 +52,7 @@ export const movements = {
           `
           *,
           produits (designation, sku),
-          entrepots (nom_entrepot),
-          utilisateurs (nom, email)
+          entrepots (nom_entrepot)
         `,
         )
         .single();
@@ -143,8 +141,7 @@ export const movements = {
           `
           *,
           produits (designation, sku),
-          entrepots (nom_entrepot),
-          utilisateurs (nom, email)
+          entrepots (nom_entrepot)
         `,
         )
         .eq("id_mvt", movementId)
@@ -164,8 +161,7 @@ export const movements = {
           `
           *,
           produits (designation, sku),
-          entrepots (nom_entrepot),
-          utilisateurs (nom, email)
+          entrepots (nom_entrepot)
         `,
         )
         .eq("id_entreprise", entrepriseId);

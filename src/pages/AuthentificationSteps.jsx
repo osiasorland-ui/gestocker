@@ -41,27 +41,52 @@ export const Step1PersonalInfo = ({
     </div>
 
     <div className="space-y-5">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Nom complet *
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <User className="h-5 w-5 text-gray-400" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Nom *
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <User className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              className={`w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all ${errors.nom ? "border-red-300 ring-red-500" : ""}`}
+              placeholder="Dupont"
+              {...register("nom")}
+            />
           </div>
-          <input
-            type="text"
-            className={`w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all ${errors.nom ? "border-red-300 ring-red-500" : ""}`}
-            placeholder="Jean Dupont"
-            {...register("nom")}
-          />
+          {errors.nom && (
+            <p className="mt-2 text-sm text-red-600 flex items-center">
+              <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-2"></span>
+              {errors.nom.message}
+            </p>
+          )}
         </div>
-        {errors.nom && (
-          <p className="mt-2 text-sm text-red-600 flex items-center">
-            <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-2"></span>
-            {errors.nom.message}
-          </p>
-        )}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Prénom *
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <User className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              className={`w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all ${errors.prenom ? "border-red-300 ring-red-500" : ""}`}
+              placeholder="Jean"
+              {...register("prenom")}
+            />
+          </div>
+          {errors.prenom && (
+            <p className="mt-2 text-sm text-red-600 flex items-center">
+              <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-2"></span>
+              {errors.prenom.message}
+            </p>
+          )}
+        </div>
       </div>
 
       <div>

@@ -101,7 +101,7 @@ const Commandes = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mx-auto p-10">
       {/* En-tête */}
       <div className="flex justify-between items-center">
         <div>
@@ -237,71 +237,83 @@ const Commandes = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredCommandes.map((commande) => (
-                <tr key={commande.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {commande.reference}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {commande.client}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {commande.telephone}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-1 text-sm text-gray-900">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      {commande.date}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
-                      <DollarSign className="w-4 h-4 text-gray-400" />
-                      {commande.montant.toLocaleString()} FCFA
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-1 text-sm text-gray-900">
-                      <Package className="w-4 h-4 text-gray-400" />
-                      {commande.produits}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(commande.statut)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setSelectedCommande(commande)}
-                        className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
-                        title="Voir les détails"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleEditCommande(commande)}
-                        className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
-                        title="Modifier"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCommande(commande.id)}
-                        className="p-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+              {filteredCommandes.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan="7"
+                    className="px-6 py-12 text-center text-gray-500"
+                  >
+                    <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>Aucune commande trouvée</p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredCommandes.map((commande) => (
+                  <tr key={commande.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {commande.reference}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {commande.client}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {commande.telephone}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-sm text-gray-900">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        {commande.date}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
+                        <DollarSign className="w-4 h-4 text-gray-400" />
+                        {commande.montant.toLocaleString()} FCFA
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-sm text-gray-900">
+                        <Package className="w-4 h-4 text-gray-400" />
+                        {commande.produits}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getStatusBadge(commande.statut)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSelectedCommande(commande)}
+                          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                          title="Voir les détails"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEditCommande(commande)}
+                          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                          title="Modifier"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCommande(commande.id)}
+                          className="p-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

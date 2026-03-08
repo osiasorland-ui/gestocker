@@ -10,8 +10,11 @@ import {
   AlertCircle,
   ArrowUpRight,
   ArrowDownLeft,
+  User,
+  Building,
+  TrendingUp,
 } from "lucide-react";
-import { warehouses } from "../../config/supabase";
+import { warehouses, createAdminClient } from "../../config/supabase";
 import { useAuth } from "../../hooks/useAuthHook.js";
 
 // Import des composants UI
@@ -34,6 +37,7 @@ import Loader, {
 function Entrepots() {
   const { profile, loading: authLoading } = useAuth();
   const [entrepots, setEntrepots] = useState([]);
+  const [gerants, setGerants] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showStockModal, setShowStockModal] = useState(false);
@@ -42,6 +46,7 @@ function Entrepots() {
   const [formData, setFormData] = useState({
     nom_entrepot: "",
     adresse: "",
+    id_gerant: "",
   });
   const [stockFormData, setStockFormData] = useState({
     id_produit: "",
@@ -79,14 +84,52 @@ function Entrepots() {
     }
   }, [profile]);
 
+  // Charger les gérants disponibles pour l'entreprise
+  const loadGerants = useCallback(async () => {
+    try {
+      if (!profile || !profile.id_entreprise) {
+        return;
+      }
+
+      const supabaseAdmin = createAdminClient();
+
+      // Charger les utilisateurs avec le rôle "Gerant" ou "Gerant Principal"
+      const { data, error } = await supabaseAdmin
+        .from("utilisateurs")
+        .select(
+          `
+          id_user,
+          nom,
+          prenom,
+          email,
+          roles!inner (
+            libelle
+          )
+        `,
+        )
+        .eq("id_entreprise", profile.id_entreprise)
+        .in("roles.libelle", ["Gerant", "Gerant Principal"])
+        .eq("statut", "actif");
+
+      if (error) {
+        console.error("Erreur lors du chargement des gérants:", error);
+      } else {
+        setGerants(data || []);
+      }
+    } catch (err) {
+      console.error("Erreur dans loadGerants:", err);
+    }
+  }, [profile]);
+
   useEffect(() => {
     if (!authLoading && profile) {
       loadEntrepots();
+      loadGerants();
     } else if (!authLoading && !profile) {
       setError("Utilisateur non connecté");
       setLoading(false);
     }
-  }, [profile, authLoading, loadEntrepots]);
+  }, [profile, authLoading, loadEntrepots, loadGerants]);
 
   // Générer une référence à partir de l'entrepôt pour affichage (séparé du nom)
   const getWarehouseReference = (entrepot) => {
@@ -111,6 +154,12 @@ function Entrepots() {
       return;
     }
 
+    // Validation du gérant obligatoire
+    if (!formData.id_gerant) {
+      setError("Veuillez sélectionner un gérant pour cet entrepôt");
+      return;
+    }
+
     try {
       setError(null);
 
@@ -118,7 +167,10 @@ function Entrepots() {
         // Mettre à jour l'entrepôt
         const { data, error } = await warehouses.update(
           editingEntrepot.id_entrepot,
-          formData,
+          {
+            ...formData,
+            id_entreprise: profile.id_entreprise,
+          },
         );
 
         if (error) {
@@ -139,6 +191,7 @@ function Entrepots() {
         const warehouseData = {
           nom_entrepot: formData.nom_entrepot,
           adresse: formData.adresse,
+          id_gerant: formData.id_gerant,
           id_entreprise: profile.id_entreprise,
         };
 
@@ -163,6 +216,7 @@ function Entrepots() {
     setFormData({
       nom_entrepot: "",
       adresse: "",
+      id_gerant: "",
     });
     setShowAddModal(false);
     setEditingEntrepot(null);
@@ -232,7 +286,7 @@ function Entrepots() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mx-auto p-10">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -248,6 +302,61 @@ function Entrepots() {
           <Plus className="w-4 h-4" />
           Ajouter un entrepôt
         </button>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-purple-100 rounded-full">
+              <Building className="h-6 w-6 text-purple-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">
+                Total Entrepôts
+              </p>
+              <p className="text-2xl font-bold text-gray-900">
+                {entrepots.length}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-blue-100 rounded-full">
+              <Package className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">
+                Total Produits
+              </p>
+              <p className="text-2xl font-bold text-gray-900">
+                {entrepots.reduce(
+                  (total, entrepot) => total + (entrepot.nombre_produits || 0),
+                  0,
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-green-100 rounded-full">
+              <TrendingUp className="h-6 w-6 text-green-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Stock Total</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {entrepots.reduce(
+                  (total, entrepot) => total + (entrepot.stock_total || 0),
+                  0,
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Error Message */}
@@ -297,6 +406,9 @@ function Entrepots() {
                     Nom de l'entrepôt
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Gérant
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Adresse
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -317,7 +429,7 @@ function Entrepots() {
                 {filteredEntrepots.length === 0 ? (
                   <tr>
                     <td
-                      colSpan="7"
+                      colSpan="8"
                       className="px-6 py-12 text-center text-gray-500"
                     >
                       <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
@@ -342,6 +454,16 @@ function Entrepots() {
                           <div className="text-sm font-medium text-gray-900">
                             {entrepot.nom_entrepot}
                           </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-gray-400" />
+                          <span>
+                            {entrepot.gerant_nom
+                              ? `${entrepot.gerant_prenom} ${entrepot.gerant_nom}`
+                              : "Non assigné"}
+                          </span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -429,6 +551,29 @@ function Entrepots() {
                   placeholder="Ex: Entrepôt Principal, Dépôt Nord..."
                 />
               </div>
+
+              {!editingEntrepot && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Gérant de l'entrepôt *
+                  </label>
+                  <select
+                    required
+                    value={formData.id_gerant}
+                    onChange={(e) =>
+                      setFormData({ ...formData, id_gerant: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  >
+                    <option value="">Sélectionner un gérant</option>
+                    {gerants.map((gerant) => (
+                      <option key={gerant.id_user} value={gerant.id_user}>
+                        {gerant.prenom} {gerant.nom} - {gerant.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {!editingEntrepot && (
                 <div>

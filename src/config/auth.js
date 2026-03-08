@@ -47,129 +47,71 @@ export { createClient };
 
 // Fonctions utilitaires pour l'authentification avec table utilisateurs personnalisée
 export const auth = {
-  // Connexion avec email et mot de passe (vérification directe)
+  // Connexion avec email et mot de passe (vérification avec hash)
   signIn: async (email, password) => {
     try {
       console.log("=== AUTH.SIGNIN DÉBUT ===");
       console.log("Email recherché:", email);
 
-      // Étape 1: Vérifier si c'est un email d'entreprise
-      console.log("Vérification email entreprise...");
-      const { data: entrepriseData, error: entrepriseError } = await supabase
-        .from("entreprises")
-        .select("email_entreprise")
-        .eq("email_entreprise", email)
-        .maybeSingle();
+      // Utiliser la fonction RPC pour vérifier le mot de passe hashé
+      const { data: userData, error: userError } = await supabase.rpc(
+        "verify_user_password",
+        {
+          user_email: email,
+          user_password: password,
+        },
+      );
 
-      console.log("Résultat recherche entreprise:", {
-        entrepriseData,
-        entrepriseError,
-      });
-
-      let userData, userError;
-
-      if (entrepriseData) {
-        console.log("Email d'entreprise détecté, recherche admin...");
-        // Si c'est un email d'entreprise, chercher l'admin (id_role = UUID Admin)
-
-        // D'abord récupérer l'UUID du rôle Admin
-        const { data: adminRole, error: adminRoleError } = await supabase
-          .from("roles")
-          .select("id_role")
-          .eq("libelle", "Admin")
-          .maybeSingle();
-
-        console.log("Rôle Admin trouvé:", { adminRole, adminRoleError });
-
-        if (adminRoleError || !adminRole) {
-          console.error("Erreur récupération rôle Admin:", adminRoleError);
-          return { data: null, error: "Erreur configuration des rôles" };
-        }
-
-        const result = await supabase
-          .from("utilisateurs")
-          .select(
-            `
-            id_user,
-            nom,
-            email,
-            id_role,
-            id_entreprise,
-            roles(libelle)
-          `,
-          )
-          .eq("email", email)
-          .eq("mot_de_passe", password)
-          .eq("id_role", adminRole.id_role) // Admin UUID
-          .maybeSingle();
-
-        userData = result.data;
-        userError = result.error;
-        console.log("Résultat recherche admin:", { userData, userError });
-      } else {
-        console.log("Email utilisateur normal, recherche utilisateur...");
-        // Sinon, chercher un utilisateur normal (id_role ≠ Admin UUID)
-
-        // Récupérer l'UUID du rôle Admin
-        const { data: adminRole, error: adminRoleError } = await supabase
-          .from("roles")
-          .select("id_role")
-          .eq("libelle", "Admin")
-          .maybeSingle();
-
-        console.log("Rôle Admin pour exclusion:", {
-          adminRole,
-          adminRoleError,
-        });
-
-        if (adminRoleError || !adminRole) {
-          console.error("Erreur récupération rôle Admin:", adminRoleError);
-          return { data: null, error: "Erreur configuration des rôles" };
-        }
-
-        const result = await supabase
-          .from("utilisateurs")
-          .select(
-            `
-            id_user,
-            nom,
-            email,
-            id_role,
-            id_entreprise,
-            roles(libelle)
-          `,
-          )
-          .eq("email", email)
-          .eq("mot_de_passe", password)
-          .neq("id_role", adminRole.id_role) // Non-admin UUID
-          .maybeSingle();
-
-        userData = result.data;
-        userError = result.error;
-        console.log("Résultat recherche utilisateur:", { userData, userError });
-      }
+      console.log("Résultat recherche utilisateur:", { userData, userError });
 
       if (userError) {
         console.error("Erreur base de données:", userError);
-        return { data: null, error: "Email ou mot de passe incorrect" };
+        const errorMessage =
+          userError.message ||
+          userError.details ||
+          "Email ou mot de passe incorrect";
+        return { data: null, error: errorMessage };
       }
 
-      if (!userData) {
-        console.log("Aucun utilisateur trouvé");
+      if (!userData || userData.length === 0) {
+        console.log("Aucun utilisateur trouvé ou mot de passe incorrect");
         return {
           data: null,
           error: "Email ou mot de passe incorrect",
         };
       }
 
-      console.log("Utilisateur trouvé avec succès:", userData);
+      // Prendre le premier utilisateur trouvé
+      const user = userData[0];
+      console.log("Utilisateur trouvé avec succès:", user);
+
+      // Créer l'objet utilisateur complet
+      const userDataComplete = {
+        id_user: user.id_user,
+        nom: user.nom,
+        prenom: user.prenom,
+        email: user.email,
+        id_role: user.id_role,
+        id_entreprise: user.id_entreprise,
+        statut: user.statut,
+        roles: { libelle: user.role_libelle },
+        entreprises: { nom_commercial: user.entreprise_nom },
+      };
+
+      console.log("✅ Utilisateur vérifié avec entreprise:", {
+        id_user: userDataComplete.id_user,
+        email: userDataComplete.email,
+        role: userDataComplete.roles?.libelle,
+        entreprise: userDataComplete.entreprises?.nom_commercial,
+        statut: userDataComplete.statut,
+      });
 
       // Étape 2: Créer une vraie session Supabase
       // Utiliser signIn avec un mot de passe universel pour créer une session Supabase
       const { data: authData, error: authError } =
         await supabase.auth.signInWithPassword({
-          email: `${userData.id_user}@supabase.local`, // Email unique basé sur l'ID
-          password: `${userData.id_user}_${password}`, // Mot de passe unique
+          email: `${userDataComplete.id_user}@supabase.local`, // Email unique basé sur l'ID
+          password: `${userDataComplete.id_user}_${password}`, // Mot de passe unique
         });
 
       // Si la session n'existe pas, la créer avec signUp
@@ -180,11 +122,11 @@ export const auth = {
         console.log("Création de la session Supabase...");
         const { data: signUpData, error: signUpError } =
           await supabase.auth.signUp({
-            email: `${userData.id_user}@supabase.local`,
-            password: `${userData.id_user}_${password}`,
+            email: `${userDataComplete.id_user}@supabase.local`,
+            password: `${userDataComplete.id_user}_${password}`,
             options: {
               data: {
-                custom_user_id: userData.id_user,
+                custom_user_id: userDataComplete.id_user,
                 original_email: email,
               },
             },
@@ -197,7 +139,7 @@ export const auth = {
           console.log("Session Supabase créée:", signUpData);
           return {
             data: {
-              user: { ...userData, ...signUpData.user },
+              user: { ...userDataComplete, ...signUpData.user },
               session: signUpData.session,
             },
             error: null,
@@ -213,9 +155,9 @@ export const auth = {
       // Créer une session basique avec les données de notre table
       const result = {
         data: {
-          user: userData,
+          user: userDataComplete, // Utiliser les données complètes avec entreprise
           session: authData?.session || {
-            user: userData,
+            user: userDataComplete,
             access_token: "local_token",
             refresh_token: "local_refresh",
             expires_at: Date.now() + 3600000, // 1 heure
@@ -239,134 +181,292 @@ export const auth = {
     try {
       console.log("=== AUTH.SIGNUP DÉBUT ===");
       console.log("Email:", email);
+      console.log("Password type:", typeof password);
       console.log("Metadata:", metadata);
+      console.log("Metadata type:", typeof metadata);
+      console.log("Metadata keys:", Object.keys(metadata));
+
+      // Vérifier les valeurs spécifiques
+      console.log("metadata.nom:", metadata.nom, typeof metadata.nom);
+      console.log("metadata.prenom:", metadata.prenom, typeof metadata.prenom);
+      console.log(
+        "metadata.role_id:",
+        metadata.role_id,
+        typeof metadata.role_id,
+      );
+      console.log(
+        "metadata.email_entreprise:",
+        metadata.email_entreprise,
+        typeof metadata.email_entreprise,
+      );
 
       // Créer un client admin temporaire pour cette opération
       const supabaseAdmin = createAdminClient();
+      // Vérifier si l'utilisateur connecté est Admin ou Super User
+      // Utiliser getCurrentSession pour obtenir la session actuelle
+      const { session: currentSession } = await supabase.auth.getSession();
+      console.log("Session Supabase actuelle:", currentSession);
 
-      // Étape 1: Créer l'entreprise directement avec supabaseAdmin
-      console.log("Création de l'entreprise...");
-      const { data: entrepriseData, error: entrepriseError } =
-        await supabaseAdmin
-          .from("entreprises")
-          .insert({
-            nom_commercial: metadata.nom_entreprise,
-            raison_sociale: metadata.raison_sociale || metadata.nom_entreprise,
-            ifu: metadata.ifu,
-            registre_commerce: metadata.registre_commerce,
-            adresse_siege: metadata.adresse_siege || null,
-            telephone_contact: metadata.telephone_entreprise || null,
-            email_entreprise: metadata.email_entreprise || email,
-            logo_path: metadata.logo_base64 || null, // Utiliser logo_path qui existe en base
-          })
-          .select()
+      let currentUser = currentSession?.user;
+      console.log("Utilisateur Supabase Auth:", currentUser);
+
+      // Si pas de session Supabase, essayer de récupérer depuis les métadonnées
+      if (!currentUser && metadata.id_entreprise) {
+        console.log(
+          "Pas de session Supabase mais une entreprise est fournie dans les métadonnées",
+        );
+        console.log(
+          "Utilisation de l'entreprise ID depuis les métadonnées:",
+          metadata.id_entreprise,
+        );
+        currentUser = { email: metadata.current_user_email }; // Pour référence
+      } else {
+        console.log("Aucune session trouvée, création d'un nouvel utilisateur");
+      }
+
+      // Récupérer les données complètes de l'utilisateur depuis notre table
+      let fullUser = null;
+      if (currentUser) {
+        const { data: userData } = await supabaseAdmin
+          .from("utilisateurs")
+          .select("*, roles(*)")
+          .eq("email", currentUser.email || "")
+          .maybeSingle();
+        fullUser = userData;
+      }
+
+      console.log("Utilisateur complet avec rôle:", fullUser);
+
+      const userRoleId = fullUser?.role_id || fullUser?.id_role;
+      console.log("Rôle ID de l'utilisateur:", userRoleId);
+
+      const isAdminOrSuperUser =
+        userRoleId === "5a0fa61f-9db1-4caa-a030-c1f6c5c99ee3" ||
+        userRoleId === "a033e29c-94f6-4eb3-9243-a9424ec20357";
+
+      console.log("Est Admin ou Super User:", isAdminOrSuperUser);
+
+      let entrepriseId;
+
+      // Si un utilisateur est connecté, utiliser son entreprise existante
+      if (currentUser) {
+        console.log(
+          "Utilisateur connecté détecté, utilisation de l'entreprise existante",
+        );
+
+        // Récupérer les données complètes de l'utilisateur depuis notre table
+        const { data: userData } = await supabaseAdmin
+          .from("utilisateurs")
+          .select("*, roles(*)")
+          .eq("email", currentUser.email || "")
           .maybeSingle();
 
-      console.log("Résultat création entreprise:", {
-        entrepriseData,
-        entrepriseError,
-      });
+        console.log("Utilisateur complet:", userData);
 
-      if (entrepriseError) {
-        console.error("Erreur création entreprise:", entrepriseError);
-        // Gérer les erreurs spécifiques
-        if (
-          entrepriseError.message.includes(
-            "duplicate key value violates unique constraint",
-          )
-        ) {
-          if (
-            entrepriseError.message.includes("ifu") ||
-            entrepriseError.message.includes("entreprises_new_ifu_key")
-          ) {
-            return {
-              data: null,
-              error: "IFU_EXISTS",
-            };
-          }
-          if (
-            entrepriseError.message.includes("registre_commerce") ||
-            entrepriseError.message.includes(
-              "entreprises_new_registre_commerce_key",
-            )
-          ) {
-            return {
-              data: null,
-              error: "REGISTRE_EXISTS",
-            };
-          }
-          if (entrepriseError.message.includes("email_entreprise")) {
-            return {
-              data: null,
-              error: "EMAIL_EXISTS",
-            };
-          }
+        entrepriseId = userData?.id_entreprise;
+
+        if (!entrepriseId) {
+          return {
+            data: null,
+            error: "Aucune entreprise associée à votre compte",
+          };
         }
 
-        return {
-          data: null,
-          error: entrepriseError.message,
+        console.log("Utilisation de l'entreprise ID:", entrepriseId);
+      } else {
+        // Si aucun utilisateur connecté, créer une nouvelle entreprise
+        console.log(
+          "Aucun utilisateur connecté, création d'une nouvelle entreprise...",
+        );
+
+        // Préparer les données de l'entreprise avec des limites de longueur
+        const entrepriseData = {
+          nom_commercial: String(metadata.nom_entreprise || "").substring(
+            0,
+            100,
+          ),
+          raison_sociale: String(
+            metadata.raison_sociale || metadata.nom_entreprise || "",
+          ).substring(0, 100),
+          ifu: String(metadata.ifu || "").substring(0, 50),
+          registre_commerce: String(metadata.registre_commerce || "").substring(
+            0,
+            50,
+          ),
+          adresse_siege: metadata.adresse_siege
+            ? String(metadata.adresse_siege).substring(0, 500)
+            : null,
+          telephone_contact: metadata.telephone_entreprise
+            ? String(metadata.telephone_entreprise).substring(0, 20)
+            : null,
+          email_entreprise: String(
+            metadata.email_entreprise || email || "",
+          ).substring(0, 100),
+          logo_path: metadata.logo_base64
+            ? String(metadata.logo_base64).substring(0, 1000)
+            : null,
         };
+
+        console.log("Données entreprise (tronquées):", entrepriseData);
+
+        const { data: entrepriseDataResult, error: entrepriseError } =
+          await supabaseAdmin
+            .from("entreprises")
+            .insert(entrepriseData)
+            .select()
+            .maybeSingle();
+
+        console.log("Résultat création entreprise:", {
+          entrepriseData: entrepriseDataResult,
+          entrepriseError,
+        });
+
+        if (entrepriseError) {
+          console.error("Erreur création entreprise:", entrepriseError);
+          // Gérer les erreurs spécifiques
+          if (
+            entrepriseError.message.includes(
+              "duplicate key value violates unique constraint",
+            )
+          ) {
+            if (
+              entrepriseError.message.includes("ifu") ||
+              entrepriseError.message.includes("entreprises_new_ifu_key")
+            ) {
+              return {
+                data: null,
+                error: "IFU_EXISTS",
+              };
+            }
+            if (
+              entrepriseError.message.includes("registre_commerce") ||
+              entrepriseError.message.includes(
+                "entreprises_new_registre_commerce_key",
+              )
+            ) {
+              return {
+                data: null,
+                error: "REGISTRE_EXISTS",
+              };
+            }
+            if (entrepriseError.message.includes("email_entreprise")) {
+              return {
+                data: null,
+                error: "EMAIL_EXISTS",
+              };
+            }
+          }
+
+          return {
+            data: null,
+            error: entrepriseError.message,
+          };
+        }
+
+        entrepriseId = entrepriseDataResult?.id_entreprise;
       }
 
       // Étape 2: Créer l'utilisateur directement
 
-      // Récupérer l'UUID du rôle Admin
-      console.log("Récupération du rôle Admin...");
-      const { data: adminRole } = await supabaseAdmin
+      // Récupérer l'UUID du rôle demandé
+      console.log("Récupération du rôle demandé...");
+      const { data: roleData } = await supabaseAdmin
         .from("roles")
-        .select("id_role")
-        .eq("libelle", "Admin")
+        .select("id_role, libelle")
+        .eq("id_role", metadata.role_id)
         .maybeSingle();
 
-      console.log("Rôle Admin trouvé:", adminRole);
+      console.log("Rôle trouvé:", roleData);
 
-      if (!adminRole) {
-        console.error("Rôle Admin non trouvé");
-        return { data: null, error: "Erreur configuration des rôles" };
+      if (!roleData) {
+        console.error("Rôle non trouvé");
+        return { data: null, error: "Rôle spécifié non trouvé" };
       }
 
       console.log("Création de l'utilisateur...");
-      const { data: userData, error: userError } = await supabaseAdmin
+      const userDataToInsert = {
+        nom: metadata.nom || "",
+        prenom: metadata.prenom || "",
+        email: email,
+        telephone: metadata.telephone || null, // Ajouter le téléphone de l'utilisateur
+        mot_de_passe: password, // Note: il faudrait hasher ce mot de passe
+        id_role: roleData.id_role, // Utiliser id_role au lieu de role_id
+        id_entreprise: entrepriseId,
+        statut: "actif",
+      };
+
+      console.log("Données utilisateur à insérer:", userDataToInsert);
+
+      const { data: userData, error: userCreateError } = await supabaseAdmin
         .from("utilisateurs")
-        .insert({
-          nom: metadata.nom,
-          email: metadata.email_entreprise, // Toujours utiliser l'email entreprise
-          mot_de_passe: password, // Stocker temporairement en clair
-          id_role: adminRole.id_role, // UUID du rôle Admin
-          id_entreprise: entrepriseData.id_entreprise,
-        })
-        .select(
-          `
+        .insert(userDataToInsert)
+        .select()
+        .maybeSingle();
+
+      console.log("Résultat création utilisateur:", {
+        userData,
+        userCreateError,
+      });
+
+      if (userCreateError) {
+        return {
+          data: null,
+          error: `Erreur création utilisateur: ${userCreateError.message}`,
+        };
+      }
+
+      // Étape 4: Vérifier que l'utilisateur est bien créé et lié à l'entreprise
+      console.log("Vérification de la création de l'utilisateur...");
+      const { data: verificationData, error: verificationError } =
+        await supabaseAdmin
+          .from("utilisateurs")
+          .select(
+            `
           *,
           roles (*),
           entreprises (*)
         `,
-        )
-        .maybeSingle();
+          )
+          .eq("email", email)
+          .maybeSingle();
 
-      console.log("Résultat création utilisateur:", { userData, userError });
-
-      if (userError) {
+      if (verificationError) {
+        console.error("Erreur vérification utilisateur:", verificationError);
         return {
           data: null,
-          error: `Erreur création utilisateur: ${userError.message}`,
+          error: `Erreur vérification: ${verificationError.message}`,
         };
       }
 
-      // Étape 3: Donner les permissions à l'utilisateur
+      if (!verificationData) {
+        console.error("L'utilisateur n'a pas été créé correctement");
+        return {
+          data: null,
+          error: "Erreur: l'utilisateur n'a pas pu être créé correctement",
+        };
+      }
+
+      console.log("✅ Utilisateur vérifié avec succès:", {
+        id_user: verificationData.id_user,
+        email: verificationData.email,
+        role: verificationData.roles?.libelle,
+        entreprise: verificationData.entreprises?.nom_commercial,
+        statut: verificationData.statut,
+      });
+
+      // Étape 5: Donner les permissions à l'utilisateur
       console.log("Attribution des permissions...");
       const { data: permissionsData } = await supabaseAdmin
         .from("permissions")
         .select("id_permission");
 
-      if (permissionsData && userData.id_role) {
+      if (permissionsData && verificationData.id_role) {
         console.log("Permissions trouvées:", permissionsData.length);
         // Vérifier d'abord si les permissions existent déjà
         const { data: existingPermissions } = await supabaseAdmin
           .from("role_permission")
           .select("id_permission")
-          .eq("id_role", userData.id_role);
+          .eq("id_role", verificationData.id_role);
 
         const existingPermissionIds =
           existingPermissions?.map((p) => p.id_permission) || [];
@@ -375,19 +475,19 @@ export const auth = {
         for (const permission of permissionsData) {
           if (!existingPermissionIds.includes(permission.id_permission)) {
             await supabaseAdmin.from("role_permission").insert({
-              id_role: userData.id_role,
+              id_role: verificationData.id_role,
               id_permission: permission.id_permission,
             });
           }
         }
       }
 
-      // Étape 4: Créer une session locale
+      // Étape 6: Créer une session locale
       console.log("Création de la session locale...");
       const sessionData = {
-        user: userData,
+        user: verificationData,
         session: {
-          user: userData,
+          user: verificationData,
           access_token: "local_token",
           refresh_token: "local_refresh",
           expires_at: Date.now() + 3600000,

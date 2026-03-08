@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Plus,
   Search,
@@ -131,21 +131,26 @@ function Mouvements() {
     loadData();
   }, [loadData]);
 
-  const filteredMouvements = mouvements.filter((mouvement) => {
-    const matchesSearch =
-      mouvement.produits?.designation
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      mouvement.motif?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      mouvement.produits?.sku?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType =
-      filterType === "tous" || mouvement.type_mvt === filterType.toUpperCase();
-    const matchesDate =
-      !dateFilter ||
-      new Date(mouvement.date_mvt).toISOString().split("T")[0] === dateFilter;
+  const filteredMouvements = useMemo(() => {
+    return mouvements.filter((mouvement) => {
+      const matchesSearch =
+        mouvement.produits?.designation
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        mouvement.motif?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        mouvement.produits?.sku
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase());
+      const matchesType =
+        filterType === "tous" ||
+        mouvement.type_mvt === filterType.toUpperCase();
+      const matchesDate =
+        !dateFilter ||
+        new Date(mouvement.date_mvt).toISOString().split("T")[0] === dateFilter;
 
-    return matchesSearch && matchesType && matchesDate;
-  });
+      return matchesSearch && matchesType && matchesDate;
+    });
+  }, [mouvements, searchTerm, filterType, dateFilter]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -263,7 +268,7 @@ function Mouvements() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mx-auto p-10">
       {/* Messages d'alerte */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -525,7 +530,7 @@ function Mouvements() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex items-center gap-2">
                           <User className="w-4 h-4 text-gray-400" />
-                          {mouvement.utilisateurs?.nom || "Utilisateur inconnu"}
+                          ID: {mouvement.id_mvt?.slice(0, 8) || "-"}
                         </div>
                       </td>
                     </tr>

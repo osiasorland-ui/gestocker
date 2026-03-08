@@ -439,7 +439,7 @@ const Clients = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mx-auto p-10">
       {/* En-tête */}
       <div className="flex justify-between items-center">
         <div>
@@ -581,86 +581,100 @@ const Clients = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredClients.map((client, index) => {
-                  const isEntreprise = client.nom && !client.prenom;
-                  // Générer la référence CLI000000
-                  const clientRef = `CLI${String(index + 1).padStart(6, "0")}`;
-                  return (
-                    <tr key={client.id_client} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {clientRef}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {isEntreprise
-                            ? client.nom
-                            : `${client.prenom || ""} ${client.nom || ""}`.trim() ||
-                              "-"}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                            isEntreprise
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-green-100 text-green-800"
-                          }`}
-                        >
-                          {isEntreprise ? (
-                            <>
-                              <Building className="w-3 h-3" />
-                              Entreprise
-                            </>
-                          ) : (
-                            <>
-                              <Users className="w-3 h-3" />
-                              Particulier
-                            </>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="space-y-1">
-                          {client.telephone && (
-                            <div className="flex items-center gap-1 text-sm text-gray-900">
-                              <Phone className="w-4 h-4 text-gray-400" />
-                              {client.telephone}
-                            </div>
-                          )}
-                          {client.email && (
-                            <div className="flex items-center gap-1 text-sm text-gray-600">
-                              <Mail className="w-4 h-4 text-gray-400" />
-                              {client.email}
-                            </div>
-                          )}
-                          {!client.telephone && !client.email && (
-                            <div className="text-sm text-gray-400">-</div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEditClient(client)}
-                            className="p-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded"
-                            title="Modifier"
+                {filteredClients.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan="6"
+                      className="px-6 py-12 text-center text-gray-500"
+                    >
+                      <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>Aucun client trouvé</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredClients.map((client, index) => {
+                    const isEntreprise = client.nom && !client.prenom;
+                    // Générer la référence CLI000000
+                    const clientRef = `CLI${String(index + 1).padStart(6, "0")}`;
+                    return (
+                      <tr key={client.id_client} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {clientRef}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {isEntreprise
+                              ? client.nom
+                              : `${client.prenom || ""} ${client.nom || ""}`.trim() ||
+                                "-"}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                              isEntreprise
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-green-100 text-green-800"
+                            }`}
                           >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteClient(client.id_client)}
-                            className="p-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded"
-                            title="Supprimer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                            {isEntreprise ? (
+                              <>
+                                <Building className="w-3 h-3" />
+                                Entreprise
+                              </>
+                            ) : (
+                              <>
+                                <Users className="w-3 h-3" />
+                                Particulier
+                              </>
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="space-y-1">
+                            {client.telephone && (
+                              <div className="flex items-center gap-1 text-sm text-gray-900">
+                                <Phone className="w-4 h-4 text-gray-400" />
+                                {client.telephone}
+                              </div>
+                            )}
+                            {client.email && (
+                              <div className="flex items-center gap-1 text-sm text-gray-600">
+                                <Mail className="w-4 h-4 text-gray-400" />
+                                {client.email}
+                              </div>
+                            )}
+                            {!client.telephone && !client.email && (
+                              <div className="text-sm text-gray-400">-</div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditClient(client)}
+                              className="p-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded"
+                              title="Modifier"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDeleteClient(client.id_client)
+                              }
+                              className="p-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

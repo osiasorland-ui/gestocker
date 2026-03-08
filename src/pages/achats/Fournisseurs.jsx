@@ -17,23 +17,7 @@ import {
   Download,
   Star,
 } from "lucide-react";
-
-// Import des composants UI
-import Card, {
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardFooter,
-} from "../../components/ui/Card";
-import Button from "../../components/ui/Button";
-import Input from "../../components/ui/Input";
-import Badge from "../../components/ui/Badge";
-import Loader, {
-  PageLoader,
-  TableLoader,
-  InlineLoader,
-  CardLoader,
-} from "../../components/ui/Loader";
+import Loader, { PageLoader } from "../../components/ui/Loader";
 
 const StarRating = ({ value, onChange }) => {
   const [hover, setHover] = useState(0);
@@ -439,7 +423,7 @@ function Fournisseurs() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mx-auto p-10">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -497,56 +481,72 @@ function Fournisseurs() {
 
           {/* Suppliers Table */}
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-            {filteredFournisseurs.length === 0 ? (
-              <div className="text-center py-12">
-                <Building className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                <p className="text-gray-500">Aucun fournisseur trouvé</p>
-                <p className="text-sm text-gray-400 mt-1">
-                  {searchTerm
-                    ? "Essayez une autre recherche"
-                    : "Commencez par ajouter un fournisseur"}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      REF
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fournisseur
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contact
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Adresse
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Conditions paiement
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Délai livraison
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Évaluation
+                    </th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredFournisseurs.length === 0 ? (
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        REF
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Fournisseur
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Contact
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Adresse
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Conditions paiement
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Délai livraison
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Évaluation
-                      </th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
+                      <td
+                        colSpan="8"
+                        className="px-6 py-12 text-center text-gray-500"
+                      >
+                        <Building className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                        <p className="text-lg font-medium text-gray-900 mb-2">
+                          Aucun fournisseur trouvé
+                        </p>
+                        <p className="text-sm text-gray-500 mb-4">
+                          {searchTerm
+                            ? "Essayez une autre recherche"
+                            : "Commencez par ajouter un fournisseur"}
+                        </p>
+                        {!searchTerm && (
+                          <button
+                            onClick={() => setShowAddModal(true)}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Ajouter un fournisseur
+                          </button>
+                        )}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredFournisseurs.map((fournisseur) => (
+                  ) : (
+                    filteredFournisseurs.map((fournisseur) => (
                       <tr
                         key={fournisseur.id_fournisseur}
                         className="hover:bg-gray-50"
                       >
                         <td className="px-4 py-2 whitespace-nowrap text-center">
                           <div className="text-xs font-medium text-gray-900">
-                            {`FOUR${String(fournisseursList.indexOf(fournisseur) + 1).padStart(6, "0")}`}
+                            {`FOURN${String(fournisseursList.indexOf(fournisseur) + 1).padStart(6, "0")}`}
                           </div>
                         </td>
                         <td className="px-4 py-2 whitespace-nowrap">
@@ -639,11 +639,11 @@ function Fournisseurs() {
                           </div>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}

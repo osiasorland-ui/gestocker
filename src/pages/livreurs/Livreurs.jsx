@@ -32,11 +32,7 @@ import Card, {
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import Badge from "../../components/ui/Badge";
-import Loader, {
-  PageLoader,
-  TableLoader,
-  InlineLoader,
-} from "../../components/ui/Loader";
+import Loader, { PageLoader, TableLoader } from "../../components/ui/Loader";
 
 const Livreurs = () => {
   const { profile } = useAuth();
@@ -404,490 +400,483 @@ const Livreurs = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Gestion des livreurs
-              </h1>
-              <p className="mt-2 text-gray-600">
-                Gérez vos livreurs et leurs informations
-              </p>
-            </div>
-            <div className="mt-4 sm:mt-0">
-              <Button
-                onClick={() => setShowModal(true)}
-                icon={Plus}
-                className="w-full sm:w-auto"
-              >
-                Ajouter un livreur
-              </Button>
+    <div className="p-10 mx-auto">
+      {/* Loader */}
+      {loading && <PageLoader text="Chargement des livreurs..." />}
+      {!loading && (
+        <>
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  Gestion des livreurs
+                </h1>
+                <p className="mt-2 text-gray-600">
+                  Gérez vos livreurs et leurs informations
+                </p>
+              </div>
+              <div className="mt-4 sm:mt-0">
+                <Button
+                  onClick={() => setShowModal(true)}
+                  icon={Plus}
+                  className="w-full sm:w-auto"
+                >
+                  Ajouter un livreur
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Stats Cards */}
-        {loading && livreursList.length === 0 ? (
-          <PageLoader text="Chargement des livreurs..." />
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <Card hover>
-                <CardContent className="flex items-center">
-                  <div className="shrink-0">
-                    <Users className="h-8 w-8 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">
-                      Total livreurs
-                    </p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {livreursList.length}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+          {/* Stats Cards */}
 
-              <Card hover>
-                <CardContent className="flex items-center">
-                  <div className="shrink-0">
-                    <CheckCircle className="h-8 w-8 text-green-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Actifs</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {livreursList.filter((l) => l.statut === "ACTIF").length}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <Card hover>
+              <CardContent className="flex items-center">
+                <div className="shrink-0">
+                  <Users className="h-8 w-8 text-blue-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">
+                    Total livreurs
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {livreursList.length}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
-              <Card hover>
-                <CardContent className="flex items-center">
-                  <div className="shrink-0">
-                    <XCircle className="h-8 w-8 text-red-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">
-                      Inactifs
-                    </p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {
-                        livreursList.filter((l) => l.statut === "INACTIF")
-                          .length
-                      }
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+            <Card hover>
+              <CardContent className="flex items-center">
+                <div className="shrink-0">
+                  <CheckCircle className="h-8 w-8 text-green-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Actifs</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {livreursList.filter((l) => l.statut === "ACTIF").length}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card hover>
+              <CardContent className="flex items-center">
+                <div className="shrink-0">
+                  <XCircle className="h-8 w-8 text-red-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Inactifs</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {livreursList.filter((l) => l.statut === "INACTIF").length}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Search and Filters */}
+
+          <div className="flex gap-4 mb-6">
+            <div className="flex-1">
+              <Input
+                type="text"
+                placeholder="Rechercher un livreur..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                icon={Search}
+              />
             </div>
+            <Button variant="outline" icon={Filter}>
+              Filtres
+            </Button>
+          </div>
 
-            {/* Search and Filters */}
-
-            <div className="flex gap-4 mb-6">
-              <div className="flex-1">
-                <Input
-                  type="text"
-                  placeholder="Rechercher un livreur..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  icon={Search}
-                />
-              </div>
-              <Button variant="outline" icon={Filter}>
-                Filtres
-              </Button>
-            </div>
-
-            {/* Table */}
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+          {/* Table */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      REF
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Livreur
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contact
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Véhicule
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Statut
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredLivreurs.length === 0 ? (
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        REF
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Livreur
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Contact
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Véhicule
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Statut
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
+                      <td
+                        colSpan="6"
+                        className="px-6 py-12 text-center text-gray-500"
+                      >
+                        <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                        <p>Aucun livreur trouvé</p>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredLivreurs.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan="6"
-                          className="px-6 py-12 text-center text-gray-500"
-                        >
-                          <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                          <p>Aucun livreur trouvé</p>
+                  ) : (
+                    filteredLivreurs.map((livreur) => (
+                      <tr key={livreur.id_livreur} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {`LIVR${String(livreursList.indexOf(livreur) + 1).padStart(6, "0")}`}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {livreur.nom} {livreur.prenom}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            ID: {livreur.id_livreur.slice(0, 8)}...
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Phone className="w-4 h-4 text-gray-400" />
+                              {livreur.telephone}
+                            </div>
+                            {livreur.email && (
+                              <div className="flex items-center gap-2">
+                                <Mail className="w-4 h-4 text-gray-400" />
+                                {livreur.email}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            <div className="flex items-center gap-2 mb-1">
+                              {getVehicleIcon(livreur.vehicule_type)}
+                              <span className="font-medium">
+                                {livreur.vehicule_type || "Non spécifié"}
+                              </span>
+                            </div>
+                            {livreur.immatriculation && (
+                              <div className="text-xs text-gray-500">
+                                {livreur.immatriculation}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge
+                            variant={
+                              livreur.statut === "ACTIF" ? "success" : "danger"
+                            }
+                          >
+                            {livreur.statut}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEdit(livreur)}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDelete(livreur.id_livreur, livreur.nom)
+                              }
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
-                    ) : (
-                      filteredLivreurs.map((livreur) => (
-                        <tr
-                          key={livreur.id_livreur}
-                          className="hover:bg-gray-50"
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {`LIVR${String(livreursList.indexOf(livreur) + 1).padStart(6, "0")}`}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {livreur.nom} {livreur.prenom}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              ID: {livreur.id_livreur.slice(0, 8)}...
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Phone className="w-4 h-4 text-gray-400" />
-                                {livreur.telephone}
-                              </div>
-                              {livreur.email && (
-                                <div className="flex items-center gap-2">
-                                  <Mail className="w-4 h-4 text-gray-400" />
-                                  {livreur.email}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              <div className="flex items-center gap-2 mb-1">
-                                {getVehicleIcon(livreur.vehicule_type)}
-                                <span className="font-medium">
-                                  {livreur.vehicule_type || "Non spécifié"}
-                                </span>
-                              </div>
-                              {livreur.immatriculation && (
-                                <div className="text-xs text-gray-500">
-                                  {livreur.immatriculation}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <Badge
-                              variant={
-                                livreur.statut === "ACTIF"
-                                  ? "success"
-                                  : "danger"
-                              }
-                            >
-                              {livreur.statut}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleEdit(livreur)}
-                                className="text-blue-600 hover:text-blue-800"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleDelete(livreur.id_livreur, livreur.nom)
-                                }
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-6 border w-full max-w-2xl shadow-lg rounded-md bg-white">
-            <CardHeader>
-              <CardTitle>
-                {editingLivreur ? "Modifier un livreur" : "Ajouter un livreur"}
-              </CardTitle>
-            </CardHeader>
-
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nom *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.nom}
-                      onChange={(e) => handleInputChange("nom", e.target.value)}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                        fieldErrors.nom
-                          ? "border-red-500 ring-2 ring-red-200"
-                          : "border-gray-300 focus:ring-blue-500"
-                      }`}
-                      placeholder="Ex: DUPONT"
-                    />
-                    {fieldErrors.nom && (
-                      <p className="mt-1 text-sm text-red-600">
-                        {fieldErrors.nom}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Prénom *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.prenom}
-                      onChange={(e) =>
-                        handleInputChange("prenom", e.target.value)
-                      }
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                        fieldErrors.prenom
-                          ? "border-red-500 ring-2 ring-red-200"
-                          : "border-gray-300 focus:ring-blue-500"
-                      }`}
-                      placeholder="Ex: Jean"
-                    />
-                    {fieldErrors.prenom && (
-                      <p className="mt-1 text-sm text-red-600">
-                        {fieldErrors.prenom}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Téléphone *
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.telephone}
-                      onChange={(e) =>
-                        handleInputChange("telephone", e.target.value)
-                      }
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                        fieldErrors.telephone
-                          ? "border-red-500 ring-2 ring-red-200"
-                          : "border-gray-300 focus:ring-blue-500"
-                      }`}
-                      placeholder="+2290112345678"
-                    />
-                    {fieldErrors.telephone && (
-                      <p className="mt-1 text-sm text-red-600">
-                        {fieldErrors.telephone}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email *
-                    </label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) =>
-                        handleInputChange("email", e.target.value)
-                      }
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                        fieldErrors.email
-                          ? "border-red-500 ring-2 ring-red-200"
-                          : "border-gray-300 focus:ring-blue-500"
-                      }`}
-                      placeholder="exemple@gmail.com"
-                    />
-                    {fieldErrors.email && (
-                      <p className="mt-1 text-sm text-red-600">
-                        {fieldErrors.email}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Type de véhicule *
-                  </label>
-                  <select
-                    value={formData.vehicule_type}
-                    onChange={handleVehiculeTypeChange}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                      fieldErrors.vehicule_type
-                        ? "border-red-500 ring-2 ring-red-200"
-                        : "border-gray-300 focus:ring-blue-500"
-                    }`}
-                  >
-                    <option value="">--Sélectionner un type--</option>
-                    <option value="Camion">Camion</option>
-                    <option value="camionnette">Camionnette</option>
-                    <option value="tricycle">Tricycle</option>
-                    <option value="moto">Moto</option>
-                  </select>
-                  {fieldErrors.vehicule_type && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {fieldErrors.vehicule_type}
-                    </p>
+                    ))
                   )}
-                </div>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Immatriculation *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.immatriculation}
-                      onChange={(e) =>
-                        handleInputChange("immatriculation", e.target.value)
-                      }
-                      placeholder="Ex: CG-1234"
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-                        fieldErrors.immatriculation
-                          ? "border-red-500 ring-2 ring-red-200"
-                          : "border-gray-300 focus:ring-blue-500"
-                      }`}
-                    />
-                    {fieldErrors.immatriculation && (
-                      <p className="mt-1 text-sm text-red-600">
-                        {fieldErrors.immatriculation}
-                      </p>
-                    )}
-                  </div>
-                </div>
+          {/* Modal */}
+          {showModal && (
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+              <div className="relative top-20 mx-auto p-6 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+                <CardHeader>
+                  <CardTitle>
+                    {editingLivreur
+                      ? "Modifier un livreur"
+                      : "Ajouter un livreur"}
+                  </CardTitle>
+                </CardHeader>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Statut
-                  </label>
-                  <div className="flex space-x-6">
-                    {editingLivreur ? (
-                      <>
-                        <label className="inline-flex items-center">
-                          <input
-                            type="radio"
-                            name="statut"
-                            value="ACTIF"
-                            checked={formData.statut === "ACTIF"}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                statut: e.target.value,
-                              })
-                            }
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="ml-2 text-sm text-gray-700">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                <CardContent>
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Nom *
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.nom}
+                          onChange={(e) =>
+                            handleInputChange("nom", e.target.value)
+                          }
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                            fieldErrors.nom
+                              ? "border-red-500 ring-2 ring-red-200"
+                              : "border-gray-300 focus:ring-blue-500"
+                          }`}
+                          placeholder="Ex: DUPONT"
+                        />
+                        {fieldErrors.nom && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {fieldErrors.nom}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Prénom *
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.prenom}
+                          onChange={(e) =>
+                            handleInputChange("prenom", e.target.value)
+                          }
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                            fieldErrors.prenom
+                              ? "border-red-500 ring-2 ring-red-200"
+                              : "border-gray-300 focus:ring-blue-500"
+                          }`}
+                          placeholder="Ex: Jean"
+                        />
+                        {fieldErrors.prenom && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {fieldErrors.prenom}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Téléphone *
+                        </label>
+                        <input
+                          type="tel"
+                          value={formData.telephone}
+                          onChange={(e) =>
+                            handleInputChange("telephone", e.target.value)
+                          }
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                            fieldErrors.telephone
+                              ? "border-red-500 ring-2 ring-red-200"
+                              : "border-gray-300 focus:ring-blue-500"
+                          }`}
+                          placeholder="+2290112345678"
+                        />
+                        {fieldErrors.telephone && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {fieldErrors.telephone}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Email *
+                        </label>
+                        <input
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) =>
+                            handleInputChange("email", e.target.value)
+                          }
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                            fieldErrors.email
+                              ? "border-red-500 ring-2 ring-red-200"
+                              : "border-gray-300 focus:ring-blue-500"
+                          }`}
+                          placeholder="exemple@gmail.com"
+                        />
+                        {fieldErrors.email && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {fieldErrors.email}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Type de véhicule *
+                      </label>
+                      <select
+                        value={formData.vehicule_type}
+                        onChange={handleVehiculeTypeChange}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                          fieldErrors.vehicule_type
+                            ? "border-red-500 ring-2 ring-red-200"
+                            : "border-gray-300 focus:ring-blue-500"
+                        }`}
+                      >
+                        <option value="">--Sélectionner un type--</option>
+                        <option value="Camion">Camion</option>
+                        <option value="camionnette">Camionnette</option>
+                        <option value="tricycle">Tricycle</option>
+                        <option value="moto">Moto</option>
+                      </select>
+                      {fieldErrors.vehicule_type && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {fieldErrors.vehicule_type}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Immatriculation *
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.immatriculation}
+                          onChange={(e) =>
+                            handleInputChange("immatriculation", e.target.value)
+                          }
+                          placeholder="Ex: CG-1234"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                            fieldErrors.immatriculation
+                              ? "border-red-500 ring-2 ring-red-200"
+                              : "border-gray-300 focus:ring-blue-500"
+                          }`}
+                        />
+                        {fieldErrors.immatriculation && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {fieldErrors.immatriculation}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Statut
+                      </label>
+                      <div className="flex space-x-6">
+                        {editingLivreur ? (
+                          <>
+                            <label className="inline-flex items-center">
+                              <input
+                                type="radio"
+                                name="statut"
+                                value="ACTIF"
+                                checked={formData.statut === "ACTIF"}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    statut: e.target.value,
+                                  })
+                                }
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="ml-2 text-sm text-gray-700">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  Actif
+                                </span>
+                              </span>
+                            </label>
+                            <label className="inline-flex items-center">
+                              <input
+                                type="radio"
+                                name="statut"
+                                value="INACTIF"
+                                checked={formData.statut === "INACTIF"}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    statut: e.target.value,
+                                  })
+                                }
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="ml-2 text-sm text-gray-700">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                  Inactif
+                                </span>
+                              </span>
+                            </label>
+                          </>
+                        ) : (
+                          <div className="flex items-center">
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                              <CheckCircle className="w-4 h-4 mr-1.5" />
                               Actif
                             </span>
-                          </span>
-                        </label>
-                        <label className="inline-flex items-center">
-                          <input
-                            type="radio"
-                            name="statut"
-                            value="INACTIF"
-                            checked={formData.statut === "INACTIF"}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                statut: e.target.value,
-                              })
-                            }
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="ml-2 text-sm text-gray-700">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                              Inactif
+                            <span className="ml-3 text-sm text-gray-500">
+                              Par défaut pour les nouveaux livreurs
                             </span>
-                          </span>
-                        </label>
-                      </>
-                    ) : (
-                      <div className="flex items-center">
-                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                          <CheckCircle className="w-4 h-4 mr-1.5" />
-                          Actif
-                        </span>
-                        <span className="ml-3 text-sm text-gray-500">
-                          Par défaut pour les nouveaux livreurs
-                        </span>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
+                  </form>
+                </CardContent>
+
+                <CardFooter>
+                  <div className="flex justify-end space-x-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowModal(false);
+                        setEditingLivreur(null);
+                        resetForm();
+                      }}
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={submitting}
+                      className="relative"
+                    >
+                      {submitting ? (
+                        <InlineLoader
+                          text={editingLivreur ? "Mise à jour..." : "Ajout..."}
+                          size="sm"
+                        />
+                      ) : (
+                        <>{editingLivreur ? "Mettre à jour" : "Ajouter"}</>
+                      )}
+                    </Button>
                   </div>
-                </div>
-              </form>
-            </CardContent>
-
-            <CardFooter>
-              <div className="flex justify-end space-x-3">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowModal(false);
-                    setEditingLivreur(null);
-                    resetForm();
-                  }}
-                >
-                  Annuler
-                </Button>
-                <Button
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="relative"
-                >
-                  {submitting ? (
-                    <InlineLoader
-                      text={editingLivreur ? "Mise à jour..." : "Ajout..."}
-                      size="sm"
-                    />
-                  ) : (
-                    <>{editingLivreur ? "Mettre à jour" : "Ajouter"}</>
-                  )}
-                </Button>
+                </CardFooter>
               </div>
-            </CardFooter>
-          </div>
-        </div>
-      )}
+            </div>
+          )}
 
-      {/* Notification */}
-      <Notification
-        notification={notification}
-        onClose={() => setNotification(null)}
-      />
+          {/* Notification */}
+          <Notification
+            notification={notification}
+            onClose={() => setNotification(null)}
+          />
+        </>
+      )}
     </div>
   );
 };

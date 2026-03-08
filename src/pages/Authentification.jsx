@@ -45,8 +45,12 @@ const stepVariants = {
 const registerSchema = yup.object().shape({
   nom: yup
     .string()
-    .required("Le nom complet est requis")
+    .required("Le nom est requis")
     .min(2, "Le nom doit contenir au moins 2 caractères"),
+  prenom: yup
+    .string()
+    .required("Le prénom est requis")
+    .min(2, "Le prénom doit contenir au moins 2 caractères"),
   email: yup
     .string()
     .required("L'email est requis")
@@ -78,8 +82,14 @@ const registerSchema = yup.object().shape({
     .required("L'IFU est requis")
     .matches(
       /^[0-9]{13}$/,
-      "L'IFU doit contenir exactement 13 chiffres (ex: 3200100123456)",
-    ),
+      "L'IFU doit contenir exactement 13 chiffres (format: 3200100123456)",
+    )
+    .test("ifu-format", "Format IFU invalide pour le Bénin", (value) => {
+      // IFU béninois: commence par 1, 2, 3 ou 9 selon le type d'entreprise
+      if (!value) return false;
+      const firstDigit = value[0];
+      return ["1", "2", "3", "9"].includes(firstDigit);
+    }),
   registre_commerce: yup
     .string()
     .required("Le registre de commerce est requis")
@@ -177,7 +187,7 @@ function Authentification() {
   const handleNextStep = async () => {
     const fieldsToValidate =
       currentStep === 1
-        ? ["nom", "email", "mot_de_passe", "confirmer_mot_de_passe"]
+        ? ["nom", "prenom", "email", "mot_de_passe", "confirmer_mot_de_passe"]
         : currentStep === 2
           ? [
               "nom_entreprise",
@@ -239,6 +249,11 @@ function Authentification() {
   };
 
   const onSubmit = async (data) => {
+    console.log("=== SOUMISSION FORMULAIRE ===");
+    console.log("Données reçues:", data);
+    console.log("Logo file:", logoFile);
+    console.log("Logo preview:", logoPreview);
+
     setIsLoading(true);
     setSubmitError("");
     clearErrors();
@@ -246,6 +261,7 @@ function Authentification() {
     try {
       // Valider que le logo est présent
       if (!logoFile) {
+        console.log("ERREUR: Logo manquant");
         setError("logo_path", {
           message: "Veuillez sélectionner un logo avant de créer votre compte",
         });
@@ -276,6 +292,9 @@ function Authentification() {
 
       const result = await signUp(data.email, data.mot_de_passe, {
         nom: data.nom,
+        prenom: data.prenom,
+        telephone: data.telephone_entreprise, // Utiliser le téléphone de l'entreprise pour l'utilisateur aussi
+        role_id: "5a0fa61f-9db1-4caa-a030-c1f6c5c99ee3", // Rôle "Admin" par défaut pour les inscriptions
         nom_entreprise: data.nom_entreprise,
         raison_sociale: data.raison_sociale,
         ifu: data.ifu,

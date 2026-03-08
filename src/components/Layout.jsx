@@ -47,7 +47,7 @@ const Layout = ({ children, profile, onLogout }) => {
         </div>
 
         {/* Page Content */}
-        <main className="p-6">{children}</main>
+        <main className="">{children}</main>
       </div>
     </div>
   );

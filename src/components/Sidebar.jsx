@@ -21,6 +21,17 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
   const navigate = useNavigate();
   const [expandedSections, setExpandedSections] = useState({});
 
+  // IDs des rôles autorisés pour voir le menu Utilisateurs
+  const ADMIN_ROLE_ID = "5a0fa61f-9db1-4caa-a030-c1f6c5c99ee3";
+  const SUPER_USER_ROLE_ID = "a033e29c-94f6-4eb3-9243-a9424ec20357";
+
+  // Vérifier si l'utilisateur peut voir le menu Utilisateurs
+  const canManageUsers = () => {
+    if (!profile) return false;
+    const userRoleId = profile.id_role || profile.role_id;
+    return userRoleId === ADMIN_ROLE_ID || userRoleId === SUPER_USER_ROLE_ID;
+  };
+
   // Menu principal avec sous-menus
   const menuStructure = [
     {
@@ -110,7 +121,7 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
     },
     {
       id: "achats",
-      icon: Building2,
+      icon: TrendingUp,
       label: "Achats",
       active: location.pathname.includes("/achats"),
       children: [
@@ -144,11 +155,16 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
           path: "/settings",
           active: location.pathname === "/settings",
         },
-        {
-          label: "Utilisateurs",
-          path: "/settings/utilisateurs",
-          active: location.pathname === "/settings/utilisateurs",
-        },
+        // Sous-menu Utilisateurs - uniquement si l'utilisateur peut gérer les utilisateurs
+        ...(canManageUsers()
+          ? [
+              {
+                label: "Utilisateurs",
+                path: "/settings/utilisateurs",
+                active: location.pathname === "/settings/utilisateurs",
+              },
+            ]
+          : []),
       ],
     },
   ];
@@ -156,24 +172,29 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
   // Obtenir la source du logo de l'entreprise
   const getCompanyLogoSrc = () => {
     const logoPath = profile?.entreprises?.logo_path;
+    console.log("Logo path dans sidebar:", logoPath);
+    console.log("Profile complet:", profile);
 
     if (!logoPath) {
+      console.log("Pas de logo path");
       return null;
     }
 
+    // Si c'est une URL complète ou commence par /, retourner direct
     if (logoPath.startsWith("http") || logoPath.startsWith("/")) {
+      console.log("Logo URL ou path:", logoPath);
       return logoPath;
     }
 
+    // Si c'est déjà une data URL complète, retourner direct
     if (logoPath.startsWith("data:image")) {
+      console.log("Logo base64 direct:", logoPath.substring(0, 50) + "...");
       return logoPath;
     }
 
-    if (logoPath.length > 100) {
-      return `data:image/png;base64,${logoPath}`;
-    }
-
-    return logoPath;
+    // Sinon, considérer que c'est du base64 sans préfixe
+    console.log("Logo base64 simple:", logoPath);
+    return `data:image/png;base64,${logoPath}`;
   };
 
   const companyLogoSrc = getCompanyLogoSrc();
@@ -307,7 +328,10 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
         {/* Infos utilisateur */}
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
-            Connecté en tant que {profile?.nom || "Utilisateur"}
+            Connecté en tant que{" "}
+            {profile?.prenom && profile?.nom
+              ? `${profile.prenom} ${profile.nom}`
+              : profile?.nom || "Utilisateur"}
           </p>
         </div>
       </div>

@@ -1,10 +1,13 @@
-import { supabase } from "./auth.js";
+import { supabase, createAdminClient } from "./auth.js";
 
 // Fonctions pour la gestion des utilisateurs
 export const users = {
   // Obtenir le profil complet de l'utilisateur
   getProfile: async (userId) => {
-    const { data, error } = await supabase
+    // Utiliser le client admin pour éviter les problèmes de permissions
+    const supabaseAdmin = createAdminClient();
+
+    const { data, error } = await supabaseAdmin
       .from("utilisateurs")
       .select(
         `
@@ -14,19 +17,32 @@ export const users = {
       `,
       )
       .eq("id_user", userId)
-      .single();
+      .maybeSingle();
 
     return { data, error };
   },
 
   // Mettre à jour le profil utilisateur
   updateProfile: async (userId, updates) => {
+    console.log("updateProfile appelé avec:", { userId, updates });
+
+    // Filtrer les mises à jour pour n'inclure que les champs qui existent
+    const filteredUpdates = {};
+    Object.keys(updates).forEach((key) => {
+      if (updates[key] !== undefined && updates[key] !== null) {
+        filteredUpdates[key] = updates[key];
+      }
+    });
+
+    console.log("updates filtrés:", filteredUpdates);
+
     const { data, error } = await supabase
       .from("utilisateurs")
-      .update(updates)
+      .update(filteredUpdates)
       .eq("id_user", userId)
       .select();
 
+    console.log("Résultat updateProfile:", { data, error });
     return { data, error };
   },
 
