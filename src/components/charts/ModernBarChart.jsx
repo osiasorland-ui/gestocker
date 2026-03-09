@@ -1,29 +1,29 @@
 import React, { useState } from "react";
 import { BarChart3, TrendingUp, TrendingDown } from "lucide-react";
 
-const ModernBarChart = ({ 
-  data = [], 
-  labels = [], 
-  title = "Statistiques", 
+const ModernBarChart = ({
+  data = [],
+  labels = [],
+  title = "Statistiques",
   color = "primary",
   showStats = true,
-  height = 200 
+  height = 200,
 }) => {
   const [hoveredIndex, setHoveredIndex] = useState(null);
 
   const maxValue = Math.max(...data, 1);
   const colorClasses = {
     primary: "bg-primary",
-    secondary: "bg-secondary", 
+    secondary: "bg-secondary",
     success: "bg-success",
     warning: "bg-warning",
     error: "bg-error",
-    info: "bg-info"
+    info: "bg-info",
   };
 
   const getColorClass = () => colorClasses[color] || colorClasses.primary;
 
-  const calculatePercentage = (value) => ((value / maxValue) * 100);
+  const calculatePercentage = (value) => (value / maxValue) * 100;
 
   const getTrend = () => {
     if (data.length < 2) return null;
@@ -31,12 +31,13 @@ const ModernBarChart = ({
     const older = data.slice(0, 3);
     const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
     const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
-    return recentAvg > olderAvg ? 'up' : 'down';
+    return recentAvg > olderAvg ? "up" : "down";
   };
 
   const trend = getTrend();
   const totalValue = data.reduce((sum, val) => sum + val, 0);
-  const averageValue = data.length > 0 ? Math.round(totalValue / data.length) : 0;
+  const averageValue =
+    data.length > 0 ? Math.round(totalValue / data.length) : 0;
 
   return (
     <div className="bg-base-100 rounded-xl shadow-lg p-6 border border-base-300">
@@ -51,15 +52,27 @@ const ModernBarChart = ({
                   {totalValue.toLocaleString()}
                 </span>
                 {trend && (
-                  <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                    trend === 'up' ? 'bg-success/10 text-success' : 'bg-error/10 text-error'
-                  }`}>
-                    {trend === 'up' ? (
+                  <div
+                    className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                      trend === "up"
+                        ? "bg-success/10 text-success"
+                        : "bg-error/10 text-error"
+                    }`}
+                  >
+                    {trend === "up" ? (
                       <TrendingUp className="w-3 h-3" />
                     ) : (
                       <TrendingDown className="w-3 h-3" />
                     )}
-                    {trend === 'up' ? '+' : '-'}{Math.abs(Math.round((data[data.length-1] - data[0]) / data[0] * 100))}%
+                    {trend === "up" ? "+" : "-"}
+                    {data[0] !== 0
+                      ? Math.abs(
+                          Math.round(
+                            ((data[data.length - 1] - data[0]) / data[0]) * 100,
+                          ),
+                        )
+                      : 0}
+                    %
                   </div>
                 )}
               </div>
@@ -81,7 +94,7 @@ const ModernBarChart = ({
             {data.map((value, index) => {
               const percentage = calculatePercentage(value);
               const isHovered = hoveredIndex === index;
-              
+
               return (
                 <div
                   key={index}
@@ -90,27 +103,31 @@ const ModernBarChart = ({
                   onMouseLeave={() => setHoveredIndex(null)}
                 >
                   {/* Bar */}
-                  <div 
+                  <div
                     className={`w-full ${getColorClass()} rounded-t-lg transition-all duration-300 ease-out ${
-                      isHovered ? 'opacity-80 scale-105' : 'opacity-100'
+                      isHovered ? "opacity-80 scale-105" : "opacity-100"
                     }`}
-                    style={{ 
+                    style={{
                       height: `${percentage}%`,
-                      minHeight: '4px'
+                      minHeight: "4px",
                     }}
                   >
                     {/* Hover tooltip */}
                     {isHovered && (
                       <div className="absolute bottom-full mb-2 px-3 py-2 bg-base-content text-base-100 rounded-lg text-sm font-medium shadow-xl z-10 whitespace-nowrap">
-                        <div className="font-bold">{value.toLocaleString()}</div>
+                        <div className="font-bold">
+                          {value.toLocaleString()}
+                        </div>
                         {labels[index] && (
-                          <div className="text-xs opacity-80">{labels[index]}</div>
+                          <div className="text-xs opacity-80">
+                            {labels[index]}
+                          </div>
                         )}
                         <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-base-content"></div>
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Value label on top */}
                   {isHovered && (
                     <div className="absolute -top-6 text-xs font-bold text-base-content">
@@ -143,7 +160,10 @@ const ModernBarChart = ({
       {labels.length > 0 && (
         <div className="flex justify-between mt-4 px-1">
           {labels.map((label, index) => (
-            <div key={index} className="text-xs text-base-content/60 text-center flex-1">
+            <div
+              key={index}
+              className="text-xs text-base-content/60 text-center flex-1"
+            >
               {label}
             </div>
           ))}
@@ -155,7 +175,9 @@ const ModernBarChart = ({
         <div className="flex items-center justify-between mt-6 pt-4 border-t border-base-200">
           <div className="flex items-center gap-2">
             <div className={`w-3 h-3 ${getColorClass()} rounded`}></div>
-            <span className="text-sm text-base-content/60">Période actuelle</span>
+            <span className="text-sm text-base-content/60">
+              Période actuelle
+            </span>
           </div>
           <div className="text-sm text-base-content/40">
             {data.length} points de données

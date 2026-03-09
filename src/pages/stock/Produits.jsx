@@ -22,6 +22,7 @@ import {
   TrendingUp,
   Building,
   Tag,
+  X,
 } from "lucide-react";
 
 // Import des composants UI
@@ -50,9 +51,13 @@ function Produits() {
   const [warehousesList, setWarehousesList] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showBulkAddModal, setShowBulkAddModal] = useState(false);
   const [editingProduit, setEditingProduit] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [csvFile, setCsvFile] = useState(null);
+  const [selectedBulkCategory, setSelectedBulkCategory] = useState("");
+  const [selectedBulkWarehouse, setSelectedBulkWarehouse] = useState("");
+  const [bulkProducts, setBulkProducts] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const showErrorRef = useRef(notify);
@@ -71,7 +76,7 @@ function Produits() {
     return await products.generateReference(profile.id_entreprise);
   };
 
-  // Générer un SKU aléatoire pour les produits
+  // Générer un SKU aléatoire pour la colonne SKU
   const generateSKU = () => {
     const prefix = "PRD";
     const timestamp = Date.now().toString(36).toUpperCase();
@@ -88,11 +93,15 @@ function Produits() {
       const paddedNumber = index.toString().padStart(6, "0");
       return `PR${paddedNumber}`;
     }
-    // Si le SKU commence par PR, c'est une référence PR000001
-    if (produit.sku && produit.sku.startsWith("PR")) {
+    // Si le SKU commence par PR et est au bon format, l'utiliser directement
+    if (
+      produit.sku &&
+      produit.sku.startsWith("PR") &&
+      produit.sku.length === 7
+    ) {
       return produit.sku;
     }
-    // Fallback
+    // Fallback pour les anciens formats
     return produit.sku || "N/A";
   };
 
@@ -182,8 +191,8 @@ function Produits() {
     }
 
     try {
-      // Générer la référence du produit au format PR000001
-      // const productReference = await generateProductReference();
+      // Générer le SKU aléatoire pour la colonne SKU
+      const sku = generateSKU();
 
       // Sauvegarder l'ancienne catégorie pour la mise à jour des compteurs
       const oldCategoryId = editingProduit?.id_categorie;
@@ -191,8 +200,8 @@ function Produits() {
 
       const productData = {
         designation: formData.designation.trim(),
-        // SKU aléatoire pour tous les produits (nouveaux et modifications)
-        sku: editingProduit ? editingProduit.sku : generateSKU(),
+        // SKU aléatoire pour la colonne SKU
+        sku: editingProduit ? editingProduit.sku : sku,
         prix_unitaire: parseFloat(formData.prix_unitaire),
         quantite_stock: parseInt(formData.quantite_stock) || 0, // Ajout de la quantité
         id_categorie: newCategoryId,
@@ -252,6 +261,95 @@ function Produits() {
     });
     setShowAddModal(false);
     setEditingProduit(null);
+  };
+
+  // Traiter l'ajout en masse de produits
+  const handleBulkAddProducts = async () => {
+    if (!selectedBulkCategory) {
+      notify.error("Veuillez sélectionner une catégorie pour les produits");
+      return;
+    }
+
+    if (!selectedBulkWarehouse) {
+      notify.error("Veuillez sélectionner un entrepôt pour les produits");
+      return;
+    }
+
+    if (!bulkProducts.trim()) {
+      notify.error("Veuillez entrer au moins un produit");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const lines = bulkProducts
+        .trim()
+        .split("\n")
+        .filter((line) => line.trim());
+
+      const productsToInsert = [];
+
+      for (const line of lines) {
+        // Format: designation,prix_unitaire,quantite_stock
+        const parts = line.split(",").map((part) => part.trim());
+
+        if (parts.length < 2) {
+          console.warn(`Ligne ignorée (format incorrect): ${line}`);
+          continue;
+        }
+
+        const designation = parts[0];
+        const prix_unitaire = parseFloat(parts[1]) || 0;
+        const quantite_stock = parts[2] ? parseInt(parts[2]) || 0 : 0;
+
+        if (!designation) {
+          console.warn(`Ligne ignorée (désignation vide): ${line}`);
+          continue;
+        }
+
+        // Générer un SKU aléatoire pour la colonne SKU
+        const sku = generateSKU();
+
+        productsToInsert.push({
+          sku: sku,
+          designation: designation,
+          prix_unitaire: prix_unitaire,
+          id_categorie: selectedBulkCategory,
+          id_entrepot: selectedBulkWarehouse,
+          quantite_stock: quantite_stock,
+          id_entreprise: profile.id_entreprise,
+        });
+      }
+
+      if (productsToInsert.length === 0) {
+        notify.error("Aucun produit valide à ajouter");
+        return;
+      }
+
+      // Insérer les produits en masse
+      const { error } = await products.bulkInsert(productsToInsert);
+
+      if (error) {
+        console.error("Erreur lors de l'ajout en masse:", error);
+        notify.error(`Erreur lors de l'ajout: ${error.message}`);
+      } else {
+        notify.success(
+          `${productsToInsert.length} produit(s) ajouté(s) avec succès!`,
+        );
+        setShowBulkAddModal(false);
+        setSelectedBulkCategory("");
+        setSelectedBulkWarehouse("");
+        setBulkProducts("");
+        loadData(); // Rafraîchir la liste
+      }
+    } catch (error) {
+      console.error("Erreur dans handleBulkAddProducts:", error);
+      notify.error(`Erreur: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Gestion de l'import CSV
@@ -372,6 +470,13 @@ function Produits() {
           <p className="text-gray-600">Gérez votre catalogue de produits</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowBulkAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Package className="w-4 h-4" />
+            Ajout en masse
+          </button>
           <button
             onClick={() => setShowImportModal(true)}
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
@@ -739,6 +844,160 @@ function Produits() {
                   Importer
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ajout en masse de produits */}
+      {showBulkAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                Ajout en masse de produits
+              </h2>
+              <button
+                onClick={() => {
+                  setShowBulkAddModal(false);
+                  setSelectedBulkCategory("");
+                  setSelectedBulkWarehouse("");
+                  setBulkProducts("");
+                  setError("");
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Sélection de la catégorie */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Catégorie des produits *
+                </label>
+                <select
+                  value={selectedBulkCategory}
+                  onChange={(e) => setSelectedBulkCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  <option value="">Sélectionner une catégorie</option>
+                  {categoriesList.map((category) => (
+                    <option
+                      key={category.id_categorie}
+                      value={category.id_categorie}
+                    >
+                      {category.nom_categorie}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sélection de l'entrepôt */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Entrepôt des produits *
+                </label>
+                <select
+                  value={selectedBulkWarehouse}
+                  onChange={(e) => setSelectedBulkWarehouse(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  <option value="">Sélectionner un entrepôt</option>
+                  {warehousesList.map((warehouse) => (
+                    <option
+                      key={warehouse.id_entrepot}
+                      value={warehouse.id_entrepot}
+                    >
+                      {warehouse.nom_entrepot}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Instructions */}
+              {selectedBulkCategory && selectedBulkWarehouse && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-medium text-blue-900 mb-2">
+                    Instructions de formatage
+                  </h3>
+                  <p className="text-sm text-blue-800">
+                    Entrez chaque produit sur une ligne séparée au format :
+                  </p>
+                  <code className="block mt-2 text-xs bg-blue-100 p-2 rounded">
+                    designation,prix_unitaire,quantite_stock
+                  </code>
+                  <p className="text-xs text-blue-600 mt-2">
+                    Exemple : "Ordinateur Portable,750000,10"
+                  </p>
+                </div>
+              )}
+
+              {/* Zone de texte pour la liste */}
+              {selectedBulkCategory && selectedBulkWarehouse && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Liste des produits *
+                  </label>
+                  <textarea
+                    value={bulkProducts}
+                    onChange={(e) => setBulkProducts(e.target.value)}
+                    placeholder="Entrez la liste des produits au format CSV..."
+                    rows={10}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    {
+                      bulkProducts.split("\n").filter((line) => line.trim())
+                        .length
+                    }{" "}
+                    produit(s) détecté(s)
+                  </p>
+                </div>
+              )}
+
+              {/* Boutons d'action */}
+              {selectedBulkCategory && selectedBulkWarehouse && (
+                <div className="flex justify-end space-x-3 pt-4 border-t">
+                  <button
+                    onClick={() => {
+                      setShowBulkAddModal(false);
+                      setSelectedBulkCategory("");
+                      setSelectedBulkWarehouse("");
+                      setBulkProducts("");
+                      setError("");
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleBulkAddProducts}
+                    disabled={loading || !bulkProducts.trim()}
+                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Ajout en cours...
+                      </>
+                    ) : (
+                      <>
+                        <Package className="w-4 h-4 mr-2" />
+                        Ajouter{" "}
+                        {
+                          bulkProducts.split("\n").filter((line) => line.trim())
+                            .length
+                        }{" "}
+                        produit(s)
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuthHook.js";
+import { useNotification } from "../hooks/useNotification.js";
 import { Menu, X, Bell, Calendar, Clock } from "lucide-react";
+import NotificationsModal from "./NotificationsModal.jsx";
 
 const Navbar = () => {
   const { user, profile, signOut } = useAuth();
+  const { notifications } = useNotification();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] =
+    React.useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
   useEffect(() => {
@@ -34,6 +39,11 @@ const Navbar = () => {
 
   const handleSignOut = async () => {
     await signOut();
+  };
+
+  const handleNotificationClick = () => {
+    // Ouvrir le modal des notifications
+    setIsNotificationModalOpen(true);
   };
 
   return (
@@ -72,9 +82,17 @@ const Navbar = () => {
           {/* Section droite - Notifications et utilisateur */}
           <div className="flex items-center space-x-4">
             {/* Notifications */}
-            <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+            <button
+              onClick={handleNotificationClick}
+              className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              {/* Badge dynamique pour les notifications non lues */}
+              {notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                  {notifications.length > 99 ? "99+" : notifications.length}
+                </span>
+              )}
             </button>
 
             {/* Infos utilisateur */}
@@ -134,6 +152,12 @@ const Navbar = () => {
           </div>
         )}
       </div>
+
+      {/* Modal des notifications */}
+      <NotificationsModal
+        isOpen={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
+      />
     </nav>
   );
 };

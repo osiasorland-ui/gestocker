@@ -202,11 +202,25 @@ const Clients = () => {
         (client.email &&
           client.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (client.telephone && client.telephone.includes(searchTerm));
-      return matchesSearch;
-    });
-  }, [clientsList, searchTerm]);
 
-  const getTypeBadge = (type) => {
+      // Déterminer le type du client s'il n'est pas défini
+      const clientType =
+        client.type ||
+        (client.nom && !client.prenom ? "entreprise" : "particulier");
+
+      // Filtrer par type
+      const matchesType = filterType === "tous" || clientType === filterType;
+
+      return matchesSearch && matchesType;
+    });
+  }, [clientsList, searchTerm, filterType]);
+
+  const getTypeBadge = (client) => {
+    // Déterminer le type du client s'il n'est pas défini
+    const clientType =
+      client.type ||
+      (client.nom && !client.prenom ? "entreprise" : "particulier");
+
     const typeConfig = {
       entreprise: {
         color: "bg-blue-100 text-blue-800",
@@ -220,7 +234,7 @@ const Clients = () => {
       },
     };
 
-    const config = typeConfig[type] || typeConfig.particulier;
+    const config = typeConfig[clientType] || typeConfig.particulier;
     const Icon = config.icon;
 
     return (
@@ -938,7 +952,7 @@ const Clients = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Type</p>
-                  <div>{getTypeBadge(selectedClient.type)}</div>
+                  <div>{getTypeBadge(selectedClient)}</div>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Contact</p>

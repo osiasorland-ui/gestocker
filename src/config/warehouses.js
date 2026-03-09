@@ -1,25 +1,49 @@
-import { supabase } from "./auth.js";
+import { supabase, createAdminClient } from "./auth.js";
 
 // Fonctions pour la gestion des entrepôts
 export const warehouses = {
-  // Obtenir tous les entrepôts de l'entreprise avec le nombre de produits et le stock total
+  // Obtenir tous les entrepôts de l'entreprise avec le nombre de produits, le stock total et les infos du gérant
   getAll: async (entrepriseId) => {
-    const { data, error } = await supabase
+    // D'abord, récupérer les entrepôts
+    const { data: warehouses, error } = await supabase
       .from("entrepots")
       .select("*")
       .eq("id_entreprise", entrepriseId)
       .order("created_at", { ascending: false });
 
-    if (error) return { data, error };
+    if (error) return { data: warehouses, error };
 
-    // Pour chaque entrepôt, compter le nombre de produits et calculer le stock total
+    // DEBUG: Afficher les données brutes pour vérifier la jointure
+    console.log("Données entrepôts brutes:", warehouses);
+
+    // Pour chaque entrepôt, compter les produits ET récupérer les infos du gérant manuellement
     const warehousesWithStats = await Promise.all(
-      (data || []).map(async (warehouse) => {
+      (warehouses || []).map(async (warehouse) => {
         // Obtenir tous les produits dans cet entrepôt avec leurs quantités
         const { data: productsInWarehouse, error: countError } = await supabase
           .from("produits")
           .select("quantite_stock")
           .eq("id_entrepot", warehouse.id_entrepot);
+
+        // Récupérer manuellement les infos du gérant si id_gerant existe
+        let gerantInfo = null;
+        if (warehouse.id_gerant) {
+          const supabaseAdmin = createAdminClient();
+          const { data: gerantData } = await supabaseAdmin
+            .from("utilisateurs")
+            .select("id_user, nom, prenom, email")
+            .eq("id_user", warehouse.id_gerant)
+            .eq("statut", "actif")
+            .single();
+
+          gerantInfo = gerantData;
+          console.log(
+            `Gérant trouvé pour ${warehouse.nom_entrepot}:`,
+            gerantData,
+          );
+        } else {
+          console.log(`Pas de gérant assigné pour ${warehouse.nom_entrepot}`);
+        }
 
         // Calculer le stock total (somme des quantités)
         const stockTotal = countError
@@ -33,9 +57,16 @@ export const warehouses = {
           ...warehouse,
           nombre_produits: countError ? 0 : (productsInWarehouse || []).length,
           stock_total: stockTotal,
+          // Ajouter les infos du gérant pour l'affichage
+          gerant_nom: gerantInfo?.nom,
+          gerant_prenom: gerantInfo?.prenom,
+          gerant_email: gerantInfo?.email,
         };
       }),
     );
+
+    // DEBUG: Afficher les données finales avec les infos du gérant
+    console.log("Données entrepôts avec gérants:", warehousesWithStats);
 
     return { data: warehousesWithStats, error: null };
   },
@@ -100,7 +131,7 @@ export const warehouses = {
       // Formatter avec 6 chiffres, complété par des zéros
       const paddedNumber = nextNumber.toString().padStart(6, "0");
       return `EN${paddedNumber}`;
-    } catch (error) {
+    } catch {
       // En cas d'erreur, utiliser un timestamp comme fallback
       const timestamp = Date.now().toString().slice(-6);
       return `EN${timestamp}`;

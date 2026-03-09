@@ -169,6 +169,19 @@ export const products = {
       return `PR${timestamp}`;
     }
   },
+
+  // Insérer plusieurs produits en masse
+  bulkInsert: async (productsData) => {
+    return retryRequest(async () => {
+      const { data, error } = await supabase
+        .from("produits")
+        .insert(productsData)
+        .select();
+
+      if (error) throw error;
+      return { data, error };
+    });
+  },
 };
 
 export default products;

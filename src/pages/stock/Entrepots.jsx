@@ -13,9 +13,11 @@ import {
   User,
   Building,
   TrendingUp,
+  ArrowRightLeft,
 } from "lucide-react";
 import { warehouses, createAdminClient } from "../../config/supabase";
 import { useAuth } from "../../hooks/useAuthHook.js";
+import TransferModal from "../../components/TransferModal";
 
 // Import des composants UI
 import Card, {
@@ -41,6 +43,7 @@ function Entrepots() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showStockModal, setShowStockModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [editingEntrepot, setEditingEntrepot] = useState(null);
   const [selectedEntrepot, setSelectedEntrepot] = useState(null);
   const [formData, setFormData] = useState({
@@ -56,6 +59,7 @@ function Entrepots() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [validationError, setValidationError] = useState("");
 
   // Charger les entrepôts depuis la base de données
   const loadEntrepots = useCallback(async () => {
@@ -93,7 +97,7 @@ function Entrepots() {
 
       const supabaseAdmin = createAdminClient();
 
-      // Charger les utilisateurs avec le rôle "Gerant" ou "Gerant Principal"
+      // Charger les utilisateurs avec le rôle "Gerant" (gérants simples)
       const { data, error } = await supabaseAdmin
         .from("utilisateurs")
         .select(
@@ -108,7 +112,7 @@ function Entrepots() {
         `,
         )
         .eq("id_entreprise", profile.id_entreprise)
-        .in("roles.libelle", ["Gerant", "Gerant Principal"])
+        .eq("roles.libelle", "Gerant")
         .eq("statut", "actif");
 
       if (error) {
@@ -154,22 +158,15 @@ function Entrepots() {
       return;
     }
 
-    // Validation du gérant obligatoire
-    if (!formData.id_gerant) {
-      setError("Veuillez sélectionner un gérant pour cet entrepôt");
-      return;
-    }
-
     try {
       setError(null);
 
       if (editingEntrepot) {
-        // Mettre à jour l'entrepôt
+        // Mettre à jour l'entrepôt (seulement l'adresse peut être modifiée)
         const { data, error } = await warehouses.update(
           editingEntrepot.id_entrepot,
           {
-            ...formData,
-            id_entreprise: profile.id_entreprise,
+            adresse: formData.adresse,
           },
         );
 
@@ -187,11 +184,33 @@ function Entrepots() {
           ),
         );
       } else {
-        // Créer un nouvel entrepôt
+        // Générer un nom unique
+        let warehouseName = `Entrepôt ${entrepots.length + 1}`;
+        let counter = entrepots.length + 1;
+
+        while (entrepots.some((e) => e.nom_entrepot === warehouseName)) {
+          counter++;
+          warehouseName = `Entrepôt ${counter}`;
+        }
+
+        // Trouver un gérant unique (non utilisé par un autre entrepôt)
+        const usedGerantIds = entrepots.map((e) => e.id_gerant).filter(Boolean);
+        const availableGerant = gerants.find(
+          (g) => !usedGerantIds.includes(g.id_user),
+        );
+
+        if (!availableGerant) {
+          setValidationError(
+            "Aucun gérant disponible. Tous les gérants sont déjà assignés à des entrepôts.",
+          );
+          return;
+        }
+
+        // Créer un nouvel entrepôt avec génération automatique
         const warehouseData = {
-          nom_entrepot: formData.nom_entrepot,
+          nom_entrepot: warehouseName,
           adresse: formData.adresse,
-          id_gerant: formData.id_gerant,
+          id_gerant: availableGerant.id_user,
           id_entreprise: profile.id_entreprise,
         };
 
@@ -218,6 +237,7 @@ function Entrepots() {
       adresse: "",
       id_gerant: "",
     });
+    setValidationError("");
     setShowAddModal(false);
     setEditingEntrepot(null);
   };
@@ -295,13 +315,22 @@ function Entrepots() {
           </h1>
           <p className="text-gray-600">Gérez vos entrepôts et leurs stocks</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Ajouter un entrepôt
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowTransferModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <ArrowRightLeft className="w-4 h-4" />
+            Transférer un stock
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Ajouter un entrepôt
+          </button>
+        </div>
       </div>
 
       {/* Stats Overview */}
@@ -575,41 +604,30 @@ function Entrepots() {
                 </div>
               )}
 
-              {!editingEntrepot && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Référence automatique
-                  </label>
-                  <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
-                    Sera généré automatiquement (EN000001)
-                  </div>
-                </div>
-              )}
-
-              {editingEntrepot && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Référence
-                  </label>
-                  <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
-                    {getWarehouseReference(editingEntrepot)}
-                  </div>
-                </div>
-              )}
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Adresse
+                  Adresse *
                 </label>
                 <textarea
                   value={formData.adresse}
-                  onChange={(e) =>
-                    setFormData({ ...formData, adresse: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, adresse: e.target.value });
+                    setValidationError(""); // Effacer l'erreur lors de la saisie
+                  }}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent ${
+                    validationError
+                      ? "border-red-500 bg-red-50"
+                      : "border-gray-300"
+                  }`}
                   placeholder="Adresse de l'entrepôt"
                 />
+                {validationError && (
+                  <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {validationError}
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
@@ -744,6 +762,16 @@ function Entrepots() {
           </div>
         </div>
       )}
+
+      {/* Transfer Modal */}
+      <TransferModal
+        isOpen={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        onSuccess={() => {
+          // Rafraîchir les données si nécessaire
+          loadEntrepots();
+        }}
+      />
     </div>
   );
 }
