@@ -57,8 +57,8 @@ export const auth = {
       const { data: userData, error: userError } = await supabase.rpc(
         "verify_user_password",
         {
-          user_email: email,
-          user_password: password,
+          p_email: email,
+          p_password: password,
         },
       );
 
@@ -94,6 +94,7 @@ export const auth = {
         id_role: user.id_role,
         id_entreprise: user.id_entreprise,
         statut: user.statut,
+        first_time_login: user.first_time_login || false, // Ajouter l'information de première connexion
         roles: { libelle: user.role_libelle },
         entreprises: { nom_commercial: user.entreprise_nom },
       };

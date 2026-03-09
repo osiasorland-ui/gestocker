@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useAuth } from "../../hooks/useAuthHook.js";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react";
+import ForcePasswordChangeModal from "./ForcePasswordChangeModal.jsx";
 
 const LoginForm = ({ onToggleMode }) => {
   const { signIn, loading } = useAuth();
@@ -13,6 +14,8 @@ const LoginForm = ({ onToggleMode }) => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [showForcePasswordModal, setShowForcePasswordModal] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -21,6 +24,25 @@ const LoginForm = ({ onToggleMode }) => {
       [name]: type === "checkbox" ? checked : value,
     }));
     if (error) setError("");
+  };
+
+  const handlePasswordChangeSuccess = (result) => {
+    // Fermer le modal
+    setShowForcePasswordModal(false);
+    setCurrentUser(null);
+
+    // Afficher un message de succès
+    setError("");
+
+    // Si une réauthentification est nécessaire, rediriger vers la page de connexion
+    if (result.needsReauth) {
+      // Afficher un message temporaire puis rediriger
+      alert(result.message);
+      navigate("/");
+    } else {
+      // Sinon, rediriger vers le dashboard
+      navigate("/dashboard");
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -58,8 +80,15 @@ const LoginForm = ({ onToggleMode }) => {
     );
 
     if (result.success) {
-      // Rediriger vers le dashboard après connexion réussie
-      navigate("/dashboard");
+      // Vérifier si c'est la première connexion
+      if (result.user?.first_time_login) {
+        // Afficher le modal de changement de mot de passe
+        setCurrentUser(result.user);
+        setShowForcePasswordModal(true);
+      } else {
+        // Rediriger vers le dashboard après connexion réussie
+        navigate("/dashboard");
+      }
     } else {
       setError(result.error || "Erreur lors de la connexion");
     }
@@ -224,6 +253,17 @@ const LoginForm = ({ onToggleMode }) => {
           </button>
         </p>
       </div>
+
+      {/* Modal de changement de mot de passe forcé */}
+      <ForcePasswordChangeModal
+        user={currentUser}
+        isOpen={showForcePasswordModal}
+        onClose={() => {
+          setShowForcePasswordModal(false);
+          setCurrentUser(null);
+        }}
+        onSuccess={handlePasswordChangeSuccess}
+      />
     </div>
   );
 };

@@ -220,11 +220,11 @@ export const AuthProvider = ({ children }) => {
         );
 
         console.log("=== CONNEXION RÉUSSIE ===");
+        return { success: true, user: data.user, data };
       } else {
         console.log("Aucun utilisateur trouvé dans data.user");
+        return { success: false, error: "Aucun utilisateur trouvé" };
       }
-
-      return { success: true, data };
     } catch (error) {
       console.error("=== ERREUR CONNEXION ===");
       console.error("Type d'erreur:", typeof error);

@@ -16,6 +16,70 @@ import {
   Trash2,
 } from "lucide-react";
 
+// Constantes pour les rôles
+const SUPER_USER_ROLE_ID = "a033e29c-94f6-4eb3-9243-a9424ec20357";
+const ADMIN_ROLE_ID = "5a0fa61f-9db1-4caa-a030-c1f6c5c99ee3";
+
+// Fonction pour créer une notification d'approbation quand un Super User modifie un rôle
+export const createSuperUserRoleChangeNotification = async (
+  targetUserId,
+  oldRoleId,
+  newRoleId,
+  oldRoleName,
+  newRoleName,
+  targetUserInfo,
+  superUserId,
+) => {
+  try {
+    const supabaseAdmin = createAdminClient();
+
+    // Récupérer l'admin pour l'approbation
+    const { data: adminUser } = await supabaseAdmin
+      .from("utilisateurs")
+      .select("id_user")
+      .eq("id_role", ADMIN_ROLE_ID)
+      .eq("statut", "actif")
+      .limit(1)
+      .single();
+
+    if (!adminUser) {
+      console.warn("Aucun admin actif trouvé pour l'approbation");
+      return;
+    }
+
+    // Créer la notification d'approbation
+    await supabaseAdmin.from("admin_approval_notifications").insert({
+      id_super_user: superUserId,
+      id_admin: adminUser.id_user,
+      id_user_cible: targetUserId,
+      action_type: "MODIFICATION_ROLE",
+      details: {
+        ancien_role_id: oldRoleId,
+        nouveau_role_id: newRoleId,
+        ancien_role_libelle: oldRoleName,
+        nouveau_role_libelle: newRoleName,
+        target_user_info: targetUserInfo,
+        formulaire_modifications: {
+          nom: targetUserInfo.nom,
+          prenom: targetUserInfo.prenom,
+          email: targetUserInfo.email,
+          telephone: targetUserInfo.telephone,
+        },
+      },
+      message: `Un Super User souhaite modifier le rôle de ${targetUserInfo.prenom} ${targetUserInfo.nom} de "${oldRoleName}" à "${newRoleName}"`,
+      statut: "EN_ATTENTE",
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 heures
+    });
+
+    console.log("Notification d'approbation créée pour le Super User");
+  } catch (error) {
+    console.error(
+      "Erreur lors de la création de la notification d'approbation:",
+      error,
+    );
+  }
+};
+
 const AdminApprovalNotification = () => {
   const { profile } = useAuth();
   const [notifications, setNotifications] = useState([]);

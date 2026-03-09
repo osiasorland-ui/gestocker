@@ -7,9 +7,9 @@ import {
   UserPlus,
   AlertCircle,
   Check,
-  X,
   Users,
   Upload,
+  X,
 } from "lucide-react";
 
 // Import des composants UI
@@ -24,6 +24,8 @@ import Loader, {
 import StatsUsers from "./StatsUsers.jsx";
 import FiltragesUsers from "./FiltragesUsers.jsx";
 import TableUsers from "./TableUsers.jsx";
+import { createSuperUserRoleChangeNotification } from "../../components/AdminApprovalNotification.jsx";
+import RoleChangeNotification from "../../components/RoleChangeNotification.jsx";
 
 // Constantes pour les rôles basées sur la base de données
 const ROLES = [
@@ -101,6 +103,14 @@ const Utilisateurs = () => {
   const [selectedBulkRole, setSelectedBulkRole] = useState("");
   const [bulkUsers, setBulkUsers] = useState("");
 
+  // États pour le modal d'assignation d'entrepôt
+  const [showAssignWarehouseModal, setShowAssignWarehouseModal] =
+    useState(false);
+  const [warehouseToAssign, setWarehouseToAssign] = useState(null);
+  const [availableGerants, setAvailableGerants] = useState([]);
+  const [selectedGerantForWarehouse, setSelectedGerantForWarehouse] =
+    useState("");
+
   // États pour les filtres
   const [filterRole, setFilterRole] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -156,6 +166,84 @@ const Utilisateurs = () => {
     }
   }, [profile?.id_entreprise, loadUsers]);
 
+  // Fonction pour ouvrir le modal d'assignation d'entrepôt
+  const openAssignWarehouseModal = async (warehouse) => {
+    try {
+      const supabaseAdmin = createAdminClient();
+
+      // Récupérer les gérants disponibles (non assignés à des entrepôts)
+      const { data: allGerants, error: gerantsError } = await supabaseAdmin
+        .from("utilisateurs")
+        .select(
+          `
+          id_user,
+          nom,
+          prenom,
+          id_role,
+          roles!inner (
+            libelle
+          )
+        `,
+        )
+        .eq("roles.libelle", "Gerant") // Uniquement les gérants simples
+        .eq("statut", "actif");
+
+      if (gerantsError) throw gerantsError;
+
+      // Récupérer les entrepôts pour voir quels gérants sont déjà assignés
+      const { data: entrepots, error: entrepotsError } = await supabaseAdmin
+        .from("entrepots")
+        .select("id_gerant")
+        .not("id_gerant", "is", null);
+
+      if (entrepotsError) throw entrepotsError;
+
+      // Filtrer les gérants non assignés
+      const assignedGerantIds = entrepots.map((e) => e.id_gerant);
+      const availableGerantsList = allGerants.filter(
+        (g) => !assignedGerantIds.includes(g.id_user),
+      );
+
+      setWarehouseToAssign(warehouse);
+      setAvailableGerants(availableGerantsList);
+      setSelectedGerantForWarehouse("");
+      setShowAssignWarehouseModal(true);
+    } catch (error) {
+      console.error(
+        "Erreur lors du chargement des gérants disponibles:",
+        error,
+      );
+      setError("Erreur lors du chargement des gérants disponibles");
+    }
+  };
+
+  // Fonction pour assigner un gérant à un entrepôt
+  const handleAssignGerantToWarehouse = async () => {
+    if (!selectedGerantForWarehouse) {
+      setError("Veuillez sélectionner un gérant");
+      return;
+    }
+
+    try {
+      const supabaseAdmin = createAdminClient();
+
+      const { error } = await supabaseAdmin
+        .from("entrepots")
+        .update({ id_gerant: selectedGerantForWarehouse })
+        .eq("id_entrepot", warehouseToAssign.id_entrepot);
+
+      if (error) throw error;
+
+      setSuccess("Gérant assigné à l'entrepôt avec succès !");
+      setShowAssignWarehouseModal(false);
+      setWarehouseToAssign(null);
+      setAvailableGerants([]);
+      setSelectedGerantForWarehouse("");
+    } catch (error) {
+      setError("Erreur lors de l'assignation du gérant: " + error.message);
+    }
+  };
+
   // Écouter les événements de rafraîchissement après approbation admin
   useEffect(() => {
     const handleAdminApprovalProcessed = (event) => {
@@ -181,19 +269,32 @@ const Utilisateurs = () => {
   // Filtrer les utilisateurs selon le rôle de l'utilisateur connecté
   const filteredUsers = usersList
     .filter((user) => {
+      // Debug logs
+      console.log("Filtrage utilisateur:", {
+        userId: user.id_user,
+        userName: `${user.prenom} ${user.nom}`,
+        userRole: user.role_id || user.id_role,
+        currentUserId: profile?.id_user,
+        currentUserRole: profile?.id_role || profile?.role_id,
+        currentUserRoleId: profile?.id_role || profile?.role_id,
+        targetUserRoleId: user.role_id || user.id_role,
+      });
+
       // Personne ne peut se voir lui-même
       if (user.id_user === profile?.id_user) {
+        console.log("Masqué: utilisateur se voit lui-même");
         return false; // L'utilisateur ne peut pas se voir lui-même
       }
 
-      // Le Super User ne peut pas voir l'Admin
       const currentUserRoleId = profile?.id_role || profile?.role_id;
       const targetUserRoleId = user.role_id || user.id_role;
 
+      // Le Super User ne peut pas voir l'Admin
       if (
         currentUserRoleId === SUPER_USER_ROLE_ID &&
         targetUserRoleId === ADMIN_ROLE_ID
       ) {
+        console.log("Masqué: Super User ne peut pas voir Admin");
         return false; // Super User ne peut pas voir l'Admin
       }
 
@@ -202,9 +303,13 @@ const Utilisateurs = () => {
         currentUserRoleId === SUPER_USER_ROLE_ID &&
         targetUserRoleId === SUPER_USER_ROLE_ID
       ) {
+        console.log(
+          "Masqué: Super User ne peut pas voir les autres Super Users",
+        );
         return false; // Super User ne peut pas voir les autres Super Users
       }
 
+      console.log("Affiché:", `${user.prenom} ${user.nom}`);
       return true; // Pour tous les autres cas, afficher l'utilisateur
     })
     .filter((user) => {
@@ -276,14 +381,16 @@ const Utilisateurs = () => {
         if (processedValue.trim() !== "") {
           delete newFieldErrors[name];
         }
-      } else if (name === "mot_de_passe" && showAddModal) {
-        if (
-          processedValue.length >= 8 &&
-          /^(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/.test(processedValue)
-        ) {
-          delete newFieldErrors[name];
-        }
       }
+      // Suppression de la validation du mot de passe car il est maintenant généré automatiquement
+      // } else if (name === "mot_de_passe" && showAddModal) {
+      //   if (
+      //     processedValue.length >= 8 &&
+      //     /^(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/.test(processedValue)
+      //   ) {
+      //     delete newFieldErrors[name];
+      //   }
+      // }
 
       setFieldErrors(newFieldErrors);
     }
@@ -326,19 +433,20 @@ const Utilisateurs = () => {
     }
 
     // Validation mot de passe (uniquement pour l'ajout)
-    if (showAddModal) {
-      if (!formData.mot_de_passe || formData.mot_de_passe.trim() === "") {
-        errors.mot_de_passe = "Le mot de passe est obligatoire";
-      } else if (formData.mot_de_passe.length < 8) {
-        errors.mot_de_passe =
-          "Le mot de passe doit contenir au moins 8 caractères";
-      } else if (
-        !/^(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/.test(formData.mot_de_passe)
-      ) {
-        errors.mot_de_passe =
-          "Le mot de passe doit contenir au moins une majuscule, des chiffres et des lettres (sans caractères spéciaux)";
-      }
-    }
+    // Le mot de passe est maintenant généré automatiquement, plus de validation nécessaire
+    // if (showAddModal) {
+    //   if (!formData.mot_de_passe || formData.mot_de_passe.trim() === "") {
+    //     errors.mot_de_passe = "Le mot de passe est obligatoire";
+    //   } else if (formData.mot_de_passe.length < 8) {
+    //     errors.mot_de_passe =
+    //       "Le mot de passe doit contenir au moins 8 caractères";
+    //   } else if (
+    //     !/^(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/.test(formData.mot_de_passe)
+    //   ) {
+    //     errors.mot_de_passe =
+    //       "Le mot de passe doit contenir au moins une majuscule, des chiffres et des lettres (sans caractères spéciaux)";
+    //   }
+    // }
 
     return errors;
   };
@@ -403,6 +511,7 @@ const Utilisateurs = () => {
       const supabaseAdmin = createAdminClient();
 
       // D'abord créer l'entrée dans la table utilisateurs
+      const defaultPassword = "Password123";
       const { data: userData, error: dbError } = await supabaseAdmin
         .from("utilisateurs")
         .insert({
@@ -410,10 +519,11 @@ const Utilisateurs = () => {
           prenom: formData.prenom,
           email: formData.email,
           telephone: formData.telephone || null,
-          mot_de_passe: formData.mot_de_passe,
+          mot_de_passe: defaultPassword,
           id_role: formData.role_id,
           id_entreprise: formData.id_entreprise,
           statut: formData.statut,
+          first_time_login: true, // Marquer comme première connexion
         })
         .select()
         .single();
@@ -424,7 +534,7 @@ const Utilisateurs = () => {
       try {
         const { error: authError } = await auth.signUp(
           formData.email,
-          formData.mot_de_passe,
+          defaultPassword,
           {
             data: {
               id_user: userData.id_user,
@@ -487,6 +597,75 @@ const Utilisateurs = () => {
     }
 
     try {
+      // Vérifier si le rôle a changé
+      const oldRole = selectedUser.role_id || selectedUser.id_role;
+      const newRole = formData.role_id;
+      const roleChanged = oldRole !== newRole;
+
+      // Si le rôle a changé, valider avec le système d'entrepôts
+      if (roleChanged) {
+        // Utiliser les fonctions de validation du composant Entrepôts
+        const validation =
+          await window.warehouseValidation?.validateRoleChange?.(
+            selectedUser.id_user,
+            newRole,
+          );
+
+        if (validation && !validation.valid) {
+          if (validation.requiresRedirect) {
+            // Cas spécial : besoin d'assigner un gérant à l'entrepôt
+            if (
+              confirm(
+                `${validation.message}\n\nVoulez-vous assigner un gérant à cet entrepôt maintenant ?`,
+              )
+            ) {
+              // Ouvrir le modal d'assignation d'entrepôt dans la page Utilisateurs
+              await openAssignWarehouseModal(validation.entrepot);
+            }
+            setLoading(false);
+            return;
+          } else if (validation.requiresNewUser) {
+            // Cas spécial : besoin de créer un nouvel utilisateur
+            if (
+              confirm(
+                `${validation.message}\n\nVoulez-vous créer un nouvel utilisateur maintenant ?`,
+              )
+            ) {
+              // Ouvrir le modal de création d'utilisateur avec rôle "Gerant" pré-sélectionné
+              setShowAddModal(true);
+              setFormData({
+                nom: "",
+                prenom: "",
+                email: "",
+                telephone: "",
+                role_id: "2330adb2-bce2-4d87-81de-15cc2b2cb325", // ID du rôle "Gerant"
+                statut: "actif",
+              });
+            }
+            setLoading(false);
+            return;
+          } else {
+            setError(
+              validation.message || "Ce changement de rôle n'est pas autorisé.",
+            );
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Si un remplacement est requis, ouvrir le modal de remplacement
+        if (validation && validation.requiresReplacement) {
+          // Ouvrir le modal de remplacement et arrêter le processus
+          window.warehouseValidation?.openReplacementModal?.(
+            validation,
+            selectedUser.id_user,
+            newRole,
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
       // Utiliser le client admin pour éviter les problèmes de permissions
       const supabaseAdmin = createAdminClient();
 
@@ -503,7 +682,84 @@ const Utilisateurs = () => {
 
       if (error) throw error;
 
-      setSuccess("Utilisateur modifié avec succès!");
+      // Si le rôle a changé, nettoyer l'assignation d'entrepôt et créer une notification
+      if (roleChanged) {
+        // Nettoyer l'assignation d'entrepôt si nécessaire
+        const cleanupResult =
+          await window.warehouseValidation?.cleanupWarehouseAssignment?.(
+            selectedUser.id_user,
+            oldRole,
+            newRole,
+            true, // Ouvrir automatiquement le modal d'assignation
+          );
+
+        // Si un entrepôt a été désassigné et nécessite une nouvelle assignation
+        if (cleanupResult?.needsAssignment) {
+          // Rediriger vers la page des entrepôts
+          window.location.href = "/stock/entrepots";
+          return;
+        }
+
+        // Émettre un événement pour recharger les données dans la page Entrepots
+        if (typeof window.dispatchEvent === "function") {
+          window.dispatchEvent(
+            new CustomEvent("roleChanged", {
+              detail: {
+                userId: selectedUser.id_user,
+                oldRole: oldRole,
+                newRole: newRole,
+                userName: `${selectedUser.prenom} ${selectedUser.nom}`,
+              },
+            }),
+          );
+        }
+
+        // Vérifier si l'utilisateur connecté est un Super User
+        const currentUserRoleId = profile?.id_role || profile?.role_id;
+
+        if (currentUserRoleId === SUPER_USER_ROLE_ID) {
+          // Super User : créer une notification d'approbation pour l'Admin
+          const oldRoleName =
+            ROLES.find((r) => r.id === oldRole)?.libelle || "Ancien rôle";
+          const newRoleName =
+            ROLES.find((r) => r.id === newRole)?.libelle || "Nouveau rôle";
+
+          await createSuperUserRoleChangeNotification(
+            selectedUser.id_user,
+            oldRole,
+            newRole,
+            oldRoleName,
+            newRoleName,
+            {
+              id_user: selectedUser.id_user,
+              nom: selectedUser.nom,
+              prenom: selectedUser.prenom,
+              email: selectedUser.email,
+              telephone: selectedUser.telephone,
+            },
+            profile.id_user, // Ajouter l'ID du Super User connecté
+          );
+
+          setSuccess(
+            "Demande de modification de rôle envoyée à l'Admin pour approbation!",
+          );
+        } else {
+          // Admin : créer directement la notification de changement de rôle
+          await createRoleChangeNotification(
+            selectedUser.id_user,
+            selectedUser.nom,
+            selectedUser.prenom,
+            oldRole,
+            newRole,
+            profile.nom + " " + profile.prenom,
+          );
+
+          setSuccess("Utilisateur modifié avec succès!");
+        }
+      } else {
+        setSuccess("Utilisateur modifié avec succès!");
+      }
+
       setShowEditModal(false);
       setFieldErrors({});
       loadUsers();
@@ -511,6 +767,49 @@ const Utilisateurs = () => {
       setError("Erreur lors de la modification: " + error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fonction pour créer une notification de changement de rôle
+  const createRoleChangeNotification = async (
+    userId,
+    userName,
+    userPrenom,
+    oldRoleId,
+    newRoleId,
+    changedBy,
+  ) => {
+    try {
+      const supabaseAdmin = createAdminClient();
+
+      // Récupérer les noms des rôles
+      const { data: roles } = await supabaseAdmin
+        .from("roles")
+        .select("id_role, libelle")
+        .in("id_role", [oldRoleId, newRoleId]);
+
+      const oldRoleName =
+        roles?.find((r) => r.id_role === oldRoleId)?.libelle || "Ancien rôle";
+      const newRoleName =
+        roles?.find((r) => r.id_role === newRoleId)?.libelle || "Nouveau rôle";
+
+      // Créer la notification dans la table dédiée role_change_notifications
+      await supabaseAdmin.from("role_change_notifications").insert({
+        id_user: userId,
+        ancien_role_id: oldRoleId,
+        nouveau_role_id: newRoleId,
+        message: `Changement de rôle détecté.\n\nVotre poste ${oldRoleName} a été changé en ${newRoleName} par l'Admin.\n\nVos permissions ont été modifiées.`,
+        est_lu: false,
+        created_at: new Date().toISOString(),
+        expires_at: new Date(
+          Date.now() + 7 * 24 * 60 * 60 * 1000,
+        ).toISOString(), // 7 jours
+      });
+
+      console.log("Notification de changement de rôle créée avec succès");
+    } catch (error) {
+      console.error("Erreur lors de la création de la notification:", error);
+      // Ne pas bloquer la modification si la notification échoue
     }
   };
 
@@ -694,6 +993,9 @@ const Utilisateurs = () => {
 
   return (
     <div className="p-10 mx-auto">
+      {/* Composant de notification de changement de rôle */}
+      <RoleChangeNotification />
+
       {/* Header */}
       {loading && <PageLoader text="Chargement des utilisateurs..." />}
 
@@ -799,12 +1101,44 @@ const Utilisateurs = () => {
           {/* Modal Ajouter/Modifier */}
           {(showAddModal || showEditModal) && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                 <h2 className="text-xl font-bold mb-4">
                   {showAddModal
                     ? "Ajouter un utilisateur"
                     : "Modifier un utilisateur"}
                 </h2>
+
+                {/* Alerte informative pour les gérants d'entrepôt */}
+                {showEditModal &&
+                  (() => {
+                    const currentRole =
+                      selectedUser?.role_id || selectedUser?.id_role;
+                    const isGerant = [
+                      "1dd58d9b-ab78-4b62-ac8d-1d6234e89e81",
+                      "2330adb2-bce2-4d87-81de-15cc2b2cb325",
+                    ].includes(currentRole);
+
+                    if (!isGerant) return null;
+
+                    return (
+                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <div className="text-sm">
+                            <p className="font-medium text-blue-800 mb-1">
+                              Gérant d'entrepôt détecté
+                            </p>
+                            <p className="text-blue-700">
+                              Cet utilisateur est un gérant. Changer son rôle
+                              peut affecter la gestion des entrepôts. S'il n'est
+                              plus gérant, ses entrepôts deviendront sans
+                              gestionnaire.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                 <form
                   onSubmit={showAddModal ? handleAddUser : handleEditUser}
@@ -949,32 +1283,18 @@ const Utilisateurs = () => {
                   {showAddModal && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Mot de passe *
+                        Mot de passe
                       </label>
                       <input
-                        type="password"
+                        type="text"
                         name="mot_de_passe"
-                        value={formData.mot_de_passe}
-                        onChange={handleInputChange}
-                        required
-                        minLength="8"
-                        pattern="(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}"
-                        title="8+ caractères, au moins une majuscule, des chiffres et des lettres (sans caractères spéciaux)"
-                        placeholder="Entrez un mot de passe sécurisé"
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                          fieldErrors.mot_de_passe
-                            ? "border-red-500"
-                            : "border-gray-300"
-                        }`}
+                        value="Password123"
+                        disabled
+                        className="w-full px-3 py-2 border rounded-md bg-gray-100 text-gray-600 cursor-not-allowed border-gray-300"
                       />
-                      {fieldErrors.mot_de_passe && (
-                        <p className="mt-1 text-xs text-red-500">
-                          {fieldErrors.mot_de_passe}
-                        </p>
-                      )}
-                      <p className="mt-1 text-xs text-gray-500">
-                        8+ caractères, au moins une majuscule, des chiffres et
-                        des lettres (sans caractères spéciaux)
+                      <p className="mt-1 text-xs text-blue-600">
+                        Mot de passe par défaut : Password123 (l'utilisateur
+                        devra le changer lors de sa première connexion)
                       </p>
                     </div>
                   )}
@@ -1203,6 +1523,74 @@ const Utilisateurs = () => {
             </div>
           )}
         </>
+      )}
+
+      {/* Modal d'assignation d'entrepôt */}
+      {showAssignWarehouseModal && warehouseToAssign && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">
+              Assigner un gérant à l'entrepôt
+            </h3>
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                Entrepôt:{" "}
+                <span className="font-medium">
+                  {warehouseToAssign.nom_entrepot}
+                </span>
+              </p>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Gérant disponible
+              </label>
+              <select
+                value={selectedGerantForWarehouse}
+                onChange={(e) => setSelectedGerantForWarehouse(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Sélectionner un gérant</option>
+                {availableGerants.map((gerant) => (
+                  <option key={gerant.id_user} value={gerant.id_user}>
+                    {gerant.prenom} {gerant.nom}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                {success}
+              </div>
+            )}
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowAssignWarehouseModal(false);
+                  setWarehouseToAssign(null);
+                  setAvailableGerants([]);
+                  setSelectedGerantForWarehouse("");
+                  setError("");
+                  setSuccess("");
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleAssignGerantToWarehouse}
+                disabled={!selectedGerantForWarehouse}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                Assigner
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

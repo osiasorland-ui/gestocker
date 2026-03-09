@@ -115,13 +115,6 @@ const RoleChangeNotification = () => {
               Changement de rôle détecté
             </h3>
           </div>
-          <button
-            onClick={() => loadNotifications()}
-            className="text-amber-600 hover:text-amber-700 transition-colors"
-            title="Rafraîchir"
-          >
-            <RefreshCw className="w-5 h-5" />
-          </button>
         </div>
 
         <div className="mb-6">
@@ -149,15 +142,6 @@ const RoleChangeNotification = () => {
                     })}
                   </p>
                 </div>
-                <button
-                  onClick={(e) =>
-                    dismissNotification(notification.id_notification, e)
-                  }
-                  className="ml-3 text-gray-400 hover:text-gray-600 transition-colors"
-                  title="Ignorer cette notification"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
             </div>
           ))}
