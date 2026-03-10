@@ -5,10 +5,12 @@ import {
   Building2,
   AlertCircle,
   CheckCircle,
+  Info,
 } from "lucide-react";
 import { transfers } from "../config/transfers";
 import { products } from "../config/products";
 import { warehouses } from "../config/warehouses";
+import { categories } from "../config/categories";
 import { useAuth } from "../hooks/useAuthHook.js";
 
 // Import des composants UI
@@ -21,6 +23,7 @@ const TransferModal = ({ isOpen, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [productsList, setProductsList] = useState([]);
   const [warehousesList, setWarehousesList] = useState([]);
+  const [categoriesList, setCategoriesList] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -32,23 +35,31 @@ const TransferModal = ({ isOpen, onClose, onSuccess }) => {
   });
 
   const [availableStock, setAvailableStock] = useState(0);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [categoryExistsInDest, setCategoryExistsInDest] = useState(true);
+  const [productExistsInDest, setProductExistsInDest] = useState(true);
 
-  // Charger les produits et entrepôts
+  // Charger les produits, entrepôts et catégories
   useEffect(() => {
     const loadData = async () => {
       if (!profile?.id_entreprise || !isOpen) return;
 
       try {
-        const [productsResult, warehousesResult] = await Promise.all([
-          products.getAll(profile.id_entreprise),
-          warehouses.getAll(profile.id_entreprise),
-        ]);
+        const [productsResult, warehousesResult, categoriesResult] =
+          await Promise.all([
+            products.getAll(profile.id_entreprise),
+            warehouses.getAll(profile.id_entreprise),
+            categories.getAll(profile.id_entreprise),
+          ]);
 
         if (!productsResult.error) {
           setProductsList(productsResult.data || []);
         }
         if (!warehousesResult.error) {
           setWarehousesList(warehousesResult.data || []);
+        }
+        if (!categoriesResult.error) {
+          setCategoriesList(categoriesResult.data || []);
         }
       } catch (err) {
         console.error("Erreur lors du chargement des données:", err);
@@ -60,26 +71,80 @@ const TransferModal = ({ isOpen, onClose, onSuccess }) => {
 
   // Vérifier le stock disponible quand le produit et l'entrepôt source changent
   useEffect(() => {
-    const checkAvailableStock = async () => {
+    const checkAvailability = async () => {
       if (!formData.id_produit || !profile?.id_entreprise) {
         setAvailableStock(0);
+        setSelectedProduct(null);
         return;
       }
 
       try {
-        // Lire le stock directement depuis la table produits
+        // Lire le produit et vérifier sa disponibilité
         const product = productsList.find(
           (p) => p.id_produit === formData.id_produit,
         );
-        setAvailableStock(product?.quantite_stock || 0);
+
+        if (product) {
+          setSelectedProduct(product);
+          setAvailableStock(product.quantite_stock || 0);
+        } else {
+          setAvailableStock(0);
+          setSelectedProduct(null);
+        }
       } catch (err) {
         console.error("Erreur lors de la vérification du stock:", err);
         setAvailableStock(0);
+        setSelectedProduct(null);
       }
     };
 
-    checkAvailableStock();
+    checkAvailability();
   }, [formData.id_produit, productsList, profile?.id_entreprise]);
+
+  // Vérifier si la catégorie et le produit existent dans l'entrepôt de destination
+  useEffect(() => {
+    const checkDestinationAvailability = () => {
+      if (!selectedProduct || !formData.id_entrepot_dest) {
+        setCategoryExistsInDest(true);
+        setProductExistsInDest(true);
+        return;
+      }
+
+      // Vérifier si la catégorie existe dans l'entrepôt de destination
+      const categoryInDest = categoriesList.find(
+        (cat) =>
+          cat.id_categorie === selectedProduct.id_categorie &&
+          cat.id_entrepot === formData.id_entrepot_dest,
+      );
+      setCategoryExistsInDest(!!categoryInDest);
+
+      // Vérifier si le produit existe dans l'entrepôt de destination
+      const productInDest = productsList.find(
+        (p) =>
+          p.designation === selectedProduct.designation &&
+          p.id_entrepot === formData.id_entrepot_dest,
+      );
+      setProductExistsInDest(!!productInDest);
+    };
+
+    checkDestinationAvailability();
+  }, [
+    selectedProduct,
+    formData.id_entrepot_dest,
+    categoriesList,
+    productsList,
+  ]);
+
+  // Réinitialiser l'entrepôt source quand le produit change
+  useEffect(() => {
+    if (formData.id_produit) {
+      setFormData((prev) => ({
+        ...prev,
+        id_entrepot_source: "",
+        id_entrepot_dest: "",
+      }));
+    }
+  }, [formData.id_produit]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -143,6 +208,7 @@ const TransferModal = ({ isOpen, onClose, onSuccess }) => {
       });
 
       // Notifier le parent
+      console.log("Appel de onSuccess avec les données:", data);
       if (onSuccess) {
         onSuccess(data);
       }
@@ -242,18 +308,52 @@ const TransferModal = ({ isOpen, onClose, onSuccess }) => {
                   }
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
+                  disabled={!formData.id_produit}
                 >
-                  <option value="">Entrepôt source</option>
-                  {warehousesList.map((warehouse) => (
-                    <option
-                      key={warehouse.id_entrepot}
-                      value={warehouse.id_entrepot}
-                    >
-                      {warehouse.nom_entrepot}
-                    </option>
-                  ))}
+                  <option value="">
+                    {formData.id_produit
+                      ? "Entrepôt source"
+                      : "Sélectionnez d'abord un produit"}
+                  </option>
+                  {warehousesList
+                    .filter((warehouse) => {
+                      // Filtrer pour n'afficher que les entrepôts où le produit sélectionné existe avec un stock > 0
+                      const productInWarehouse = productsList.find(
+                        (p) =>
+                          p.id_produit === formData.id_produit &&
+                          p.id_entrepot === warehouse.id_entrepot,
+                      );
+                      return (
+                        productInWarehouse &&
+                        productInWarehouse.quantite_stock > 0
+                      );
+                    })
+                    .map((warehouse) => (
+                      <option
+                        key={warehouse.id_entrepot}
+                        value={warehouse.id_entrepot}
+                      >
+                        {warehouse.nom_entrepot}
+                      </option>
+                    ))}
                 </select>
               </div>
+              {formData.id_produit &&
+                warehousesList.filter((warehouse) => {
+                  const productInWarehouse = productsList.find(
+                    (p) =>
+                      p.id_produit === formData.id_produit &&
+                      p.id_entrepot === warehouse.id_entrepot,
+                  );
+                  return (
+                    productInWarehouse && productInWarehouse.quantite_stock > 0
+                  );
+                }).length === 0 && (
+                  <p className="mt-2 text-sm text-amber-600">
+                    ⚠️ Ce produit n'existe dans aucun entrepôt avec un stock
+                    disponible
+                  </p>
+                )}
             </div>
 
             {/* Entrepôt destination */}
@@ -292,21 +392,94 @@ const TransferModal = ({ isOpen, onClose, onSuccess }) => {
             </div>
           </div>
 
-          {/* Informations de stock */}
+          {/* Informations de stock et validation de destination */}
           {formData.id_produit && formData.id_entrepot_source && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Package className="w-5 h-5 text-blue-600" />
-                <span className="font-medium text-blue-900">
-                  Stock disponible
-                </span>
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Package className="w-5 h-5 text-blue-600" />
+                  <span className="font-medium text-blue-900">
+                    Stock disponible
+                  </span>
+                </div>
+                <p className="text-2xl font-bold text-blue-900">
+                  {availableStock} unités
+                </p>
+                <p className="text-sm text-blue-700 mt-1">
+                  Dans l'entrepôt source sélectionné
+                </p>
               </div>
-              <p className="text-2xl font-bold text-blue-900">
-                {availableStock} unités
-              </p>
-              <p className="text-sm text-blue-700 mt-1">
-                Dans l'entrepôt source sélectionné
-              </p>
+
+              {formData.id_entrepot_dest && (
+                <div
+                  className={`border rounded-lg p-4 ${
+                    categoryExistsInDest && productExistsInDest
+                      ? "bg-green-50 border-green-200"
+                      : "bg-amber-50 border-amber-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Info
+                      className={`w-5 h-5 ${
+                        categoryExistsInDest && productExistsInDest
+                          ? "text-green-600"
+                          : "text-amber-600"
+                      }`}
+                    />
+                    <span
+                      className={`font-medium ${
+                        categoryExistsInDest && productExistsInDest
+                          ? "text-green-900"
+                          : "text-amber-900"
+                      }`}
+                    >
+                      Validation de la destination
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          categoryExistsInDest ? "bg-green-500" : "bg-amber-500"
+                        }`}
+                      />
+                      <span
+                        className={`text-sm ${
+                          categoryExistsInDest
+                            ? "text-green-800"
+                            : "text-amber-800"
+                        }`}
+                      >
+                        Catégorie:{" "}
+                        {categoryExistsInDest
+                          ? "✓ Existe dans l'entrepôt de destination"
+                          : "⚠ Sera créée dans l'entrepôt de destination"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          productExistsInDest ? "bg-green-500" : "bg-amber-500"
+                        }`}
+                      />
+                      <span
+                        className={`text-sm ${
+                          productExistsInDest
+                            ? "text-green-800"
+                            : "text-amber-800"
+                        }`}
+                      >
+                        Produit:{" "}
+                        {productExistsInDest
+                          ? "✓ Existe dans l'entrepôt de destination (stock sera ajouté)"
+                          : "⚠ Sera créé dans l'entrepôt de destination"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

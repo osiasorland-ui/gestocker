@@ -287,6 +287,16 @@ CREATE TABLE public.roles (
   libelle character varying NOT NULL,
   CONSTRAINT roles_pkey PRIMARY KEY (id_role)
 );
+CREATE TABLE public.sauvegardes (
+  id_sauvegarde uuid NOT NULL DEFAULT gen_random_uuid(),
+  id_entreprise uuid NOT NULL,
+  type_sauvegarde character varying NOT NULL DEFAULT 'auto'::character varying CHECK (type_sauvegarde::text = ANY (ARRAY['auto'::character varying, 'manuel'::character varying, 'sequentielle'::character varying]::text[])),
+  donnees_sauvegarde jsonb NOT NULL,
+  statut character varying NOT NULL DEFAULT 'complete'::character varying CHECK (statut::text = ANY (ARRAY['complete'::character varying, 'en_cours'::character varying, 'erreur'::character varying]::text[])),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT sauvegardes_pkey PRIMARY KEY (id_sauvegarde),
+  CONSTRAINT sauvegardes_id_entreprise_fkey FOREIGN KEY (id_entreprise) REFERENCES public.entreprises(id_entreprise)
+);
 CREATE TABLE public.stocks (
   id_stock uuid NOT NULL DEFAULT gen_random_uuid(),
   quantite_disponible integer DEFAULT 0,

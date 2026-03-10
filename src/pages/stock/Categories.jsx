@@ -22,6 +22,7 @@ import Loader, {
 
 function Categories() {
   const [categoriesList, setCategoriesList] = useState([]);
+  const [entrepotsList, setEntrepotsList] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
@@ -33,6 +34,7 @@ function Categories() {
 
   const [formData, setFormData] = useState({
     nom_categorie: "",
+    id_entrepot: "",
   });
 
   const loadData = useCallback(async () => {
@@ -65,10 +67,26 @@ function Categories() {
     return `CAT${paddedNumber}`;
   };
 
+  // Charger les entrepôts pour le formulaire
+  const loadEntrepots = useCallback(async () => {
+    if (!profile?.id_entreprise) return;
+
+    try {
+      // Importer warehouses depuis supabase
+      const { warehouses } = await import("../../config/supabase.js");
+      const { data, error } = await warehouses.getAll(profile.id_entreprise);
+      if (error) throw error;
+      setEntrepotsList(data || []);
+    } catch (err) {
+      console.error("Erreur lors du chargement des entrepôts:", err);
+    }
+  }, [profile]);
+
   // Charger les données depuis la base de données
   useEffect(() => {
     if (profile?.id_entreprise) {
       loadData();
+      loadEntrepots();
     }
   }, [profile?.id_entreprise]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -83,6 +101,7 @@ function Categories() {
     try {
       const categoryData = {
         nom_categorie: formData.nom_categorie,
+        id_entrepot: formData.id_entrepot,
         id_entreprise: profile.id_entreprise,
       };
 
@@ -252,6 +271,9 @@ function Categories() {
                       Nom de la catégorie
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Entrepôt
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Date de création
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -266,7 +288,7 @@ function Categories() {
                   {filteredCategories.length === 0 ? (
                     <tr>
                       <td
-                        colSpan="5"
+                        colSpan="6"
                         className="px-6 py-12 text-center text-gray-500"
                       >
                         <Folder className="w-12 h-12 mx-auto mb-4 text-gray-300" />
@@ -299,6 +321,11 @@ function Categories() {
                               {category.nom_categorie}
                             </div>
                           </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {entrepotsList.find(
+                            (e) => e.id_entrepot === category.id_entrepot,
+                          )?.nom_entrepot || "Non spécifié"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {new Date(category.created_at).toLocaleDateString(
@@ -366,7 +393,31 @@ function Categories() {
                     setFormData({ ...formData, nom_categorie: e.target.value })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="Ex: Électronique, Vêtements..."
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Entrepôt associé *
+                </label>
+                <select
+                  value={formData.id_entrepot}
+                  onChange={(e) =>
+                    setFormData({ ...formData, id_entrepot: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                >
+                  <option value="">Sélectionner un entrepôt</option>
+                  {entrepotsList.map((entrepot) => (
+                    <option
+                      key={entrepot.id_entrepot}
+                      value={entrepot.id_entrepot}
+                    >
+                      {entrepot.nom_entrepot}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">

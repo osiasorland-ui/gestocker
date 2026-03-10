@@ -75,6 +75,8 @@ function Entrepots() {
         return;
       }
 
+      console.log("ID entreprise pour les entrepôts:", profile.id_entreprise);
+
       // Charger les entrepôts de l'entreprise
       const { data, error } = await warehouses.getAll(profile.id_entreprise);
 
@@ -120,6 +122,7 @@ function Entrepots() {
       if (error) {
         console.error("Erreur lors du chargement des gérants:", error);
       } else {
+        console.log("Gérants chargés:", data);
         setGerants(data || []);
       }
     } catch (err) {
@@ -597,10 +600,11 @@ function Entrepots() {
       setError(null);
 
       if (editingEntrepot) {
-        // Mettre à jour l'entrepôt (seulement l'adresse peut être modifiée)
+        // Mettre à jour l'entrepôt (nom et adresse)
         const { data, error } = await warehouses.update(
           editingEntrepot.id_entrepot,
           {
+            nom_entrepot: formData.nom_entrepot,
             adresse: formData.adresse,
           },
         );
@@ -619,14 +623,8 @@ function Entrepots() {
           ),
         );
       } else {
-        // Générer un nom unique
-        let warehouseName = `Entrepôt ${entrepots.length + 1}`;
-        let counter = entrepots.length + 1;
-
-        while (entrepots.some((e) => e.nom_entrepot === warehouseName)) {
-          counter++;
-          warehouseName = `Entrepôt ${counter}`;
-        }
+        // Utiliser le nom fourni dans le formulaire
+        const warehouseName = formData.nom_entrepot;
 
         // Trouver un gérant simple disponible (non utilisé par un autre entrepôt)
         // Exclure les gérants principaux de l'assignation automatique
@@ -645,7 +643,7 @@ function Entrepots() {
           return;
         }
 
-        // Créer un nouvel entrepôt avec génération automatique
+        // Créer un nouvel entrepôt avec le nom du formulaire
         const warehouseData = {
           nom_entrepot: warehouseName,
           adresse: formData.adresse,
@@ -660,8 +658,8 @@ function Entrepots() {
           return;
         }
 
-        // Ajouter à la liste locale
-        setEntrepots([...entrepots, data]);
+        // Recharger les entrepôts pour obtenir les infos complètes du gérant
+        await loadEntrepots();
       }
 
       resetForm();
@@ -1141,11 +1139,15 @@ function Entrepots() {
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   >
-                    <option value="">Sélectionner un gérant</option>
+                    <option value="">Sélectionner un gérant disponible</option>
                     {gerants
                       .filter(
                         (gerant) =>
-                          gerant.roles && gerant.roles.libelle === "Gerant",
+                          gerant.roles &&
+                          gerant.roles.libelle === "Gerant" &&
+                          !entrepots.some(
+                            (e) => e.id_gerant === gerant.id_user,
+                          ),
                       )
                       .map((gerant) => (
                         <option key={gerant.id_user} value={gerant.id_user}>

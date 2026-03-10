@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import bcrypt from "bcryptjs";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -140,7 +141,6 @@ export const auth = {
         id_role: userData.id_role,
         id_entreprise: userData.id_entreprise,
         statut: userData.statut,
-        first_time_login: userData.first_time_login || false,
         roles: { libelle: userData.roles?.libelle },
         entreprises: { nom_commercial: userData.entreprises?.nom_commercial },
       };
@@ -299,9 +299,7 @@ export const auth = {
           email_entreprise: String(
             metadata.email_entreprise || email || "",
           ).substring(0, 100),
-          logo_path: metadata.logo_base64
-            ? String(metadata.logo_base64).substring(0, 1000)
-            : null,
+          logo_path: metadata.logo_base64 ? String(metadata.logo_base64) : null,
         };
 
         console.log("Données entreprise (tronquées):", entrepriseData);

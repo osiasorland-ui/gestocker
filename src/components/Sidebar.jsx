@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { supabase } from "../config/supabase.js";
 import {
   Building2,
   Package,
@@ -16,10 +17,23 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 
-const Sidebar = ({ isOpen, profile, onLogout }) => {
+const Sidebar = ({ isOpen, profile, onLogout, onProfileUpdate }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [expandedSections, setExpandedSections] = useState({});
+  const inputRef = useRef();
+
+  // Initialize currentLogoSrc with the logo from profile to avoid flickering
+  const getInitialLogoSrc = () => {
+    const logoPath = profile?.entreprises?.logo_path;
+    if (!logoPath) return null;
+    if (logoPath.startsWith("http") || logoPath.startsWith("/"))
+      return logoPath;
+    if (logoPath.startsWith("data:image")) return logoPath;
+    return `data:image/png;base64,${logoPath}`;
+  };
+
+  const [currentLogoSrc, setCurrentLogoSrc] = useState(getInitialLogoSrc());
 
   // IDs des rôles autorisés pour voir le menu Utilisateurs
   const ADMIN_ROLE_ID = "5a0fa61f-9db1-4caa-a030-c1f6c5c99ee3";
@@ -188,7 +202,7 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
 
     // Si c'est déjà une data URL complète, retourner direct
     if (logoPath.startsWith("data:image")) {
-      console.log("Logo base64 direct:", logoPath.substring(0, 50) + "...");
+      console.log("Logo base64 direct:", logoPath);
       return logoPath;
     }
 
@@ -210,20 +224,118 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
     navigate(path);
   };
 
+  // Convert file to base64
+  const convertToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Handle logo click to open file selector
+  const handleLogoClick = () => {
+    inputRef.current.click();
+  };
+
+  // Handle file selection and upload
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        const base64 = await convertToBase64(file);
+        console.log("Base64 length:", base64.length);
+        console.log("Base64 preview:", base64);
+
+        const { error } = await supabase
+          .from("entreprises")
+          .update({ logo_path: base64 })
+          .eq("id_entreprise", profile.entreprises.id_entreprise);
+
+        if (error) {
+          console.error("Error updating logo:", error);
+        } else {
+          console.log("Logo updated successfully");
+
+          // Update the profile state directly
+          if (profile && profile.entreprises) {
+            const updatedProfile = {
+              ...profile,
+              entreprises: {
+                ...profile.entreprises,
+                logo_path: base64,
+              },
+            };
+
+            // Call the parent's update function if available
+            if (onProfileUpdate && typeof onProfileUpdate === "function") {
+              // Since updateProfile expects updates for the user table,
+              // we'll update the local state directly
+              setCurrentLogoSrc(base64);
+
+              // Also update the profile in the context by triggering a re-fetch
+              const {
+                data: { user },
+              } = await supabase.auth.getUser();
+              if (user) {
+                const { data: profileData } = await supabase
+                  .from("utilisateurs")
+                  .select(
+                    `
+                    *,
+                    entreprises (*),
+                    roles (*)
+                  `,
+                  )
+                  .eq("id_user", user.id)
+                  .single();
+
+                if (profileData && onProfileUpdate) {
+                  // Create a custom update function that just sets the profile
+                  onProfileUpdate(profileData);
+                }
+              }
+            } else {
+              // Fallback: update current logo src directly
+              setCurrentLogoSrc(base64);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error converting file:", error);
+      }
+    }
+  };
+
+  // Set initial logo src
+  useEffect(() => {
+    setCurrentLogoSrc(getCompanyLogoSrc());
+  }, [profile]);
+
   return (
     <div
       className={`menu p-6 w-72 h-screen bg-white border-r border-gray-200 fixed left-0 top-0 ${
         isOpen ? "block" : "hidden"
       } lg:block transition-all duration-300`}
     >
+      {/* Hidden file input for logo upload */}
+      <input
+        type="file"
+        ref={inputRef}
+        onChange={handleFileChange}
+        style={{ display: "none" }}
+        accept="image/*"
+      />
+
       {/* Header avec logo et infos entreprise */}
       <div className="flex flex-col items-center text-center mb-2 pb-4 border-b border-gray-200">
-        <div className="relative mb-3">
-          {companyLogoSrc ? (
+        <div className="relative mb-3 cursor-pointer" onClick={handleLogoClick}>
+          {currentLogoSrc ? (
             <img
-              src={companyLogoSrc}
+              src={currentLogoSrc}
               alt="Logo entreprise"
-              className="w-12 h-12 rounded-xl object-cover shadow-lg"
+              className="p-2 w-20 h-20 border border-gray-300 rounded-xl"
               onError={(e) => {
                 e.target.style.display = "none";
                 e.target.nextElementSibling.style.display = "flex";
@@ -232,7 +344,7 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
           ) : null}
           <div
             className="w-12 h-12 bg-linear-to-br from-gray-900 to-gray-700 rounded-xl flex items-center justify-center shadow-lg"
-            style={{ display: companyLogoSrc ? "none" : "flex" }}
+            style={{ display: currentLogoSrc ? "none" : "flex" }}
           >
             <Building2 className="w-6 h-6 text-white" />
           </div>
@@ -249,7 +361,7 @@ const Sidebar = ({ isOpen, profile, onLogout }) => {
       </div>
 
       {/* Menu principal scrollable */}
-      <nav className="space-y-2 h-[calc(100vh-280px)] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+      <nav className="space-y-2 h-[calc(100vh-320px)] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
         {menuStructure.map((item) => (
           <div key={item.id} className="menu-section">
             {/* Menu principal ou parent */}

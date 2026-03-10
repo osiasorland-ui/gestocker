@@ -433,20 +433,19 @@ const Utilisateurs = () => {
     }
 
     // Validation mot de passe (uniquement pour l'ajout)
-    // Le mot de passe est maintenant généré automatiquement, plus de validation nécessaire
-    // if (showAddModal) {
-    //   if (!formData.mot_de_passe || formData.mot_de_passe.trim() === "") {
-    //     errors.mot_de_passe = "Le mot de passe est obligatoire";
-    //   } else if (formData.mot_de_passe.length < 8) {
-    //     errors.mot_de_passe =
-    //       "Le mot de passe doit contenir au moins 8 caractères";
-    //   } else if (
-    //     !/^(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/.test(formData.mot_de_passe)
-    //   ) {
-    //     errors.mot_de_passe =
-    //       "Le mot de passe doit contenir au moins une majuscule, des chiffres et des lettres (sans caractères spéciaux)";
-    //   }
-    // }
+    if (showAddModal) {
+      if (!formData.mot_de_passe || formData.mot_de_passe.trim() === "") {
+        errors.mot_de_passe = "Le mot de passe est obligatoire";
+      } else if (formData.mot_de_passe.length < 8) {
+        errors.mot_de_passe =
+          "Le mot de passe doit contenir au moins 8 caractères";
+      } else if (
+        !/^(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/.test(formData.mot_de_passe)
+      ) {
+        errors.mot_de_passe =
+          "Le mot de passe doit contenir au moins une majuscule, des chiffres et des lettres (sans caractères spéciaux)";
+      }
+    }
 
     return errors;
   };
@@ -510,8 +509,7 @@ const Utilisateurs = () => {
       // Utiliser le client admin pour créer directement dans la table utilisateurs
       const supabaseAdmin = createAdminClient();
 
-      // D'abord créer l'entrée dans la table utilisateurs
-      const defaultPassword = "Password123";
+      // Créer l'utilisateur avec le mot de passe fourni
       const { data: userData, error: dbError } = await supabaseAdmin
         .from("utilisateurs")
         .insert({
@@ -519,11 +517,10 @@ const Utilisateurs = () => {
           prenom: formData.prenom,
           email: formData.email,
           telephone: formData.telephone || null,
-          mot_de_passe: defaultPassword,
+          mot_de_passe: formData.mot_de_passe,
           id_role: formData.role_id,
           id_entreprise: formData.id_entreprise,
           statut: formData.statut,
-          first_time_login: true, // Marquer comme première connexion
         })
         .select()
         .single();
@@ -534,7 +531,7 @@ const Utilisateurs = () => {
       try {
         const { error: authError } = await auth.signUp(
           formData.email,
-          defaultPassword,
+          formData.mot_de_passe,
           {
             data: {
               id_user: userData.id_user,
@@ -1283,19 +1280,26 @@ const Utilisateurs = () => {
                   {showAddModal && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Mot de passe
+                        Mot de passe *
                       </label>
                       <input
-                        type="text"
+                        type="password"
                         name="mot_de_passe"
-                        value="Password123"
-                        disabled
-                        className="w-full px-3 py-2 border rounded-md bg-gray-100 text-gray-600 cursor-not-allowed border-gray-300"
+                        value={formData.mot_de_passe}
+                        onChange={handleInputChange}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                          fieldErrors.mot_de_passe
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        }`}
+                        placeholder="Entrez le mot de passe"
+                        required
                       />
-                      <p className="mt-1 text-xs text-blue-600">
-                        Mot de passe par défaut : Password123 (l'utilisateur
-                        devra le changer lors de sa première connexion)
-                      </p>
+                      {fieldErrors.mot_de_passe && (
+                        <p className="mt-1 text-xs text-red-500">
+                          {fieldErrors.mot_de_passe}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -1433,7 +1437,7 @@ const Utilisateurs = () => {
                       <p className="text-sm text-blue-800 mt-3">
                         Exemple : <br />
                         <code className="bg-gray-100 px-2 py-1 rounded">
-                          DUPONT,Jean,jean.dupont@email.com,+22901234567,password123
+                          DUPONT,Jean,jean.dupont@email.com,+22901234567,MotDePasse123
                         </code>
                       </p>
                     </div>

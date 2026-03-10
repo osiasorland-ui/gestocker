@@ -221,7 +221,6 @@ export const Step2CompanyInfo = ({ register, errors, setValue }) => (
             type="text"
             className={`input input-bordered w-full pl-11 h-12 text-base transition-colors ${errors.nom_entreprise ? "input-error border-red-300" : "focus:border-primary"}`}
             placeholder="MA SUPER ENTREPRISE"
-            style={{ textTransform: "uppercase" }}
             {...register("nom_entreprise")}
           />
         </div>

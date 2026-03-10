@@ -10,6 +10,7 @@ import { useAuth } from "../../hooks/useAuthHook.js";
 import { useDevise } from "../../hooks/useDevise.js";
 import { useNotification } from "../../hooks/useNotification";
 import Notification from "../../components/Notification";
+import TransferModal from "../../components/TransferModal";
 import {
   Plus,
   Search,
@@ -23,6 +24,7 @@ import {
   Building,
   Tag,
   X,
+  ArrowRightLeft,
 } from "lucide-react";
 
 // Import des composants UI
@@ -54,6 +56,7 @@ function Produits() {
   const [showBulkAddModal, setShowBulkAddModal] = useState(false);
   const [editingProduit, setEditingProduit] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [csvFile, setCsvFile] = useState(null);
   const [selectedBulkCategory, setSelectedBulkCategory] = useState("");
   const [selectedBulkWarehouse, setSelectedBulkWarehouse] = useState("");
@@ -190,6 +193,22 @@ function Produits() {
       return;
     }
 
+    // Vérifier si un produit avec la même désignation existe déjà dans le même entrepôt
+    const existingProduct = produits.find(
+      (p) =>
+        p.designation.toLowerCase().trim() ===
+          formData.designation.toLowerCase().trim() &&
+        p.id_entrepot === formData.id_entrepot &&
+        (!editingProduit || p.id_produit !== editingProduit.id_produit),
+    );
+
+    if (existingProduct) {
+      notify.error(
+        `Un produit avec la désignation "${formData.designation.trim()}" existe déjà dans l'entrepôt sélectionné`,
+      );
+      return;
+    }
+
     try {
       // Générer le SKU aléatoire pour la colonne SKU
       const sku = generateSKU();
@@ -306,6 +325,21 @@ function Produits() {
 
         if (!designation) {
           console.warn(`Ligne ignorée (désignation vide): ${line}`);
+          continue;
+        }
+
+        // Vérifier si un produit avec la même désignation existe déjà dans le même entrepôt
+        const existingProduct = produits.find(
+          (p) =>
+            p.designation.toLowerCase().trim() ===
+              designation.toLowerCase().trim() &&
+            p.id_entrepot === selectedBulkWarehouse,
+        );
+
+        if (existingProduct) {
+          console.warn(
+            `Ligne ignorée (produit en double): ${line} - "${designation}" existe déjà dans cet entrepôt`,
+          );
           continue;
         }
 
@@ -433,6 +467,7 @@ function Produits() {
       prix_unitaire: produit.prix_unitaire,
       id_categorie: produit.id_categorie,
       id_entrepot: produit.id_entrepot,
+      quantite_stock: produit.quantite_stock || 0,
     });
     setShowAddModal(true);
   };
@@ -459,6 +494,11 @@ function Produits() {
     }
   };
 
+  const handleTransferSuccess = () => {
+    loadData(); // Recharger les données pour voir les nouveaux stocks
+    notify.success("Transfert effectué avec succès");
+  };
+
   return (
     <div className="space-y-6 mx-auto p-10">
       {/* Header */}
@@ -470,6 +510,13 @@ function Produits() {
           <p className="text-gray-600">Gérez votre catalogue de produits</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowTransferModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <ArrowRightLeft className="w-4 h-4" />
+            Transférer
+          </button>
           <button
             onClick={() => setShowBulkAddModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -702,33 +749,18 @@ function Produits() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Catégorie
-                  </label>
-                  <select
-                    value={formData.id_categorie}
-                    onChange={(e) =>
-                      setFormData({ ...formData, id_categorie: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  >
-                    <option value="">Sélectionner une catégorie</option>
-                    {categoriesList.map((cat) => (
-                      <option key={cat.id_categorie} value={cat.id_categorie}>
-                        {cat.nom_categorie}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Entrepôt *
                   </label>
                   <select
                     required
                     value={formData.id_entrepot}
-                    onChange={(e) =>
-                      setFormData({ ...formData, id_entrepot: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setFormData({
+                        ...formData,
+                        id_entrepot: e.target.value,
+                        id_categorie: "",
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   >
                     <option value="">Sélectionner un entrepôt</option>
@@ -740,6 +772,32 @@ function Produits() {
                         {warehouse.nom_entrepot}
                       </option>
                     ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Catégorie
+                  </label>
+                  <select
+                    value={formData.id_categorie}
+                    onChange={(e) =>
+                      setFormData({ ...formData, id_categorie: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    disabled={!formData.id_entrepot}
+                  >
+                    <option value="">
+                      {formData.id_entrepot
+                        ? "Sélectionner une catégorie"
+                        : "Sélectionnez d'abord un entrepôt"}
+                    </option>
+                    {categoriesList
+                      .filter((cat) => cat.id_entrepot === formData.id_entrepot)
+                      .map((cat) => (
+                        <option key={cat.id_categorie} value={cat.id_categorie}>
+                          {cat.nom_categorie}
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>
@@ -872,29 +930,6 @@ function Produits() {
             </div>
 
             <div className="space-y-4">
-              {/* Sélection de la catégorie */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Catégorie des produits *
-                </label>
-                <select
-                  value={selectedBulkCategory}
-                  onChange={(e) => setSelectedBulkCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                >
-                  <option value="">Sélectionner une catégorie</option>
-                  {categoriesList.map((category) => (
-                    <option
-                      key={category.id_categorie}
-                      value={category.id_categorie}
-                    >
-                      {category.nom_categorie}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               {/* Sélection de l'entrepôt */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -902,7 +937,10 @@ function Produits() {
                 </label>
                 <select
                   value={selectedBulkWarehouse}
-                  onChange={(e) => setSelectedBulkWarehouse(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedBulkWarehouse(e.target.value);
+                    setSelectedBulkCategory("");
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 >
@@ -915,6 +953,36 @@ function Produits() {
                       {warehouse.nom_entrepot}
                     </option>
                   ))}
+                </select>
+              </div>
+
+              {/* Sélection de la catégorie */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Catégorie des produits *
+                </label>
+                <select
+                  value={selectedBulkCategory}
+                  onChange={(e) => setSelectedBulkCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={!selectedBulkWarehouse}
+                  required
+                >
+                  <option value="">
+                    {selectedBulkWarehouse
+                      ? "Sélectionner une catégorie"
+                      : "Sélectionnez d'abord un entrepôt"}
+                  </option>
+                  {categoriesList
+                    .filter((cat) => cat.id_entrepot === selectedBulkWarehouse)
+                    .map((category) => (
+                      <option
+                        key={category.id_categorie}
+                        value={category.id_categorie}
+                      >
+                        {category.nom_categorie}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -1002,6 +1070,13 @@ function Produits() {
           </div>
         </div>
       )}
+
+      {/* Transfer Modal */}
+      <TransferModal
+        isOpen={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        onSuccess={handleTransferSuccess}
+      />
 
       <Notification />
     </div>

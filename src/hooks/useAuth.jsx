@@ -57,6 +57,7 @@ export const AuthProvider = ({ children }) => {
   // Charger les données utilisateur complètes
   const loadUserProfile = async (userId) => {
     try {
+      console.log("Chargement du profil pour userId:", userId);
       const { data: profileData, error: profileError } =
         await users.getProfile(userId);
 
@@ -69,22 +70,34 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (profileData) {
+        console.log("Profil trouvé:", profileData);
         setProfile(profileData);
 
         // Charger les permissions
-        const { data: permissionsData, error: permissionsError } =
-          await users.getUserPermissions(profileData.id_user);
+        try {
+          const { data: permissionsData, error: permissionsError } =
+            await users.getUserPermissions(profileData.id_user);
 
-        if (!permissionsError && permissionsData) {
-          const perms = permissionsData
-            .map((p) => p.permission_name)
-            .filter(Boolean);
-          setPermissions(perms);
-        } else if (permissionsError) {
-          console.error(
-            "Erreur lors du chargement des permissions:",
-            permissionsError,
+          if (!permissionsError && permissionsData) {
+            const perms = permissionsData
+              .map((p) => p.permission_name)
+              .filter(Boolean);
+            setPermissions(perms);
+          } else if (permissionsError) {
+            console.warn(
+              "Impossible de charger les permissions (fonction RPC可能 manquante):",
+              permissionsError,
+            );
+            // Continuer sans permissions plutôt que de bloquer
+            setPermissions([]);
+          }
+        } catch (permError) {
+          console.warn(
+            "Exception lors du chargement des permissions:",
+            permError,
           );
+          // Continuer sans permissions
+          setPermissions([]);
         }
       } else {
         console.log("Aucun profil trouvé pour l'ID:", userId);
@@ -212,13 +225,19 @@ export const AuthProvider = ({ children }) => {
 
         console.log("Sauvegarde de la session...");
         // Sauvegarder la session
-        const profileData = await users.getProfile(userId);
-        console.log("Profil data:", profileData);
-        saveSessionToStorage(
-          data.user,
-          profileData.data || profileData,
-          rememberMe,
-        );
+        const profileResult = await users.getProfile(userId);
+        console.log("Profil result:", profileResult);
+
+        if (profileResult.data) {
+          saveSessionToStorage(data.user, profileResult.data, rememberMe);
+        } else {
+          console.warn(
+            "Impossible de charger le profil pour la sauvegarde:",
+            profileResult.error,
+          );
+          // Sauvegarder quand même avec les données de base
+          saveSessionToStorage(data.user, data.user, rememberMe);
+        }
 
         console.log("=== CONNEXION RÉUSSIE ===");
         return { success: true, user: data.user, data };
@@ -233,17 +252,29 @@ export const AuthProvider = ({ children }) => {
       console.error("Erreur complète:", error);
 
       // Gérer le cas où l'erreur n'a pas de message
-      const errorMessage =
-        error.message || error.error || "Erreur de connexion inconnue";
+      let errorMessage = "Erreur de connexion inconnue";
+
+      if (error && typeof error === "object") {
+        errorMessage =
+          error.message ||
+          error.error ||
+          error.details ||
+          JSON.stringify(error);
+      } else if (error && typeof error === "string") {
+        errorMessage = error;
+      }
 
       // Ajout de logging détaillé pour le debug
       console.error("=== DÉTAILS ERREUR COMPLETS ===");
       console.error("Error object:", error);
       console.error("Error type:", typeof error);
-      console.error("Error keys:", Object.keys(error || {}));
-      console.error("Error message:", error.message);
-      console.error("Error error:", error.error);
-      console.error("Error details:", error.details);
+      console.error(
+        "Error keys:",
+        error ? Object.keys(error) : "error is null/undefined",
+      );
+      console.error("Error message:", error?.message);
+      console.error("Error error:", error?.error);
+      console.error("Error details:", error?.details);
       console.error("================================");
 
       return { success: false, error: errorMessage };
