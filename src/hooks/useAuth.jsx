@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { auth, users, supabase } from "../config/supabase";
+import { auth, supabase } from "../config/auth.js";
+import { users } from "../config/users.js";
 import { AuthContext } from "./authContext";
 import {
   saveSessionToStorage,

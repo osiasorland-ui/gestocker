@@ -138,18 +138,18 @@ function Entrepots() {
   }, [profile, authLoading, loadEntrepots, loadGerants]);
 
   // Fonction pour ouvrir le modal d'assignation
-  const openAssignGerantModal = (entrepot) => {
+  const openAssignGerantModal = useCallback((entrepot) => {
     setSelectedEntrepot(entrepot);
     setSelectedGerant("");
     setShowAssignGerantModal(true);
-  };
+  }, []);
 
   // Fonction pour fermer le modal d'assignation
-  const closeAssignGerantModal = () => {
+  const closeAssignGerantModal = useCallback(() => {
     setShowAssignGerantModal(false);
     setSelectedEntrepot(null);
     setSelectedGerant("");
-  };
+  }, []);
 
   // Fonction pour détecter les assignations incorrectes (ne devrait plus être nécessaire avec la nouvelle logique)
   const getIncorrectAssignments = useCallback(() => {
@@ -1325,7 +1325,7 @@ function Entrepots() {
 
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
                 <div className="text-sm">
                   <p className="font-medium text-amber-800 mb-1">
                     Remplacement requis

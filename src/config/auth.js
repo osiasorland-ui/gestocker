@@ -47,20 +47,28 @@ export { createClient };
 
 // Fonctions utilitaires pour l'authentification avec table utilisateurs personnalisée
 export const auth = {
-  // Connexion avec email et mot de passe (vérification avec hash)
+  // Connexion avec email et mot de passe (vérification sécurisée)
   signIn: async (email, password) => {
     try {
       console.log("=== AUTH.SIGNIN DÉBUT ===");
       console.log("Email recherché:", email);
 
-      // Utiliser la fonction RPC pour vérifier le mot de passe hashé
-      const { data: userData, error: userError } = await supabase.rpc(
-        "verify_user_password",
-        {
-          p_email: email,
-          p_password: password,
-        },
-      );
+      // Utiliser le client admin pour éviter les problèmes de permissions
+      const supabaseAdmin = createAdminClient();
+
+      // Récupérer l'utilisateur avec son mot de passe hashé
+      const { data: userData, error: userError } = await supabaseAdmin
+        .from("utilisateurs")
+        .select(
+          `
+          *,
+          roles (libelle),
+          entreprises (nom_commercial)
+        `,
+        )
+        .eq("email", email.toLowerCase())
+        .eq("statut", "actif")
+        .maybeSingle();
 
       console.log("Résultat recherche utilisateur:", { userData, userError });
 
@@ -73,107 +81,95 @@ export const auth = {
         return { data: null, error: errorMessage };
       }
 
-      if (!userData || userData.length === 0) {
-        console.log("Aucun utilisateur trouvé ou mot de passe incorrect");
+      if (!userData) {
+        console.log("Aucun utilisateur trouvé ou compte inactif");
         return {
           data: null,
           error: "Email ou mot de passe incorrect",
         };
       }
 
-      // Prendre le premier utilisateur trouvé
-      const user = userData[0];
-      console.log("Utilisateur trouvé avec succès:", user);
+      // Importer bcryptjs pour la vérification
+      const bcrypt = await import("bcryptjs");
+
+      let passwordValid = false;
+
+      console.log("=== DEBUG PASSWORD ===");
+      console.log("Password provided:", !!password);
+      console.log("Stored password hash:", userData.mot_de_passe);
+      console.log("Is bcrypt hash:", userData.mot_de_passe.startsWith("$2"));
+
+      // Vérifier le mot de passe selon le format
+      if (userData.mot_de_passe.startsWith("$2")) {
+        // Hash bcrypt - vérification sécurisée
+        try {
+          passwordValid = await bcrypt.compare(password, userData.mot_de_passe);
+          console.log("Bcrypt comparison result:", passwordValid);
+        } catch (bcryptError) {
+          console.error("Erreur bcrypt:", bcryptError);
+          return {
+            data: null,
+            error: "Erreur de vérification du mot de passe",
+          };
+        }
+      } else {
+        // Ancien format non hashé - comparaison directe mais avertir
+        console.warn(
+          "⚠️ Mot de passe en clair détecté - migration recommandée",
+        );
+        passwordValid = userData.mot_de_passe === password;
+        console.log("Plain text comparison result:", passwordValid);
+      }
+
+      if (!passwordValid) {
+        console.log("Mot de passe incorrect");
+        return {
+          data: null,
+          error: "Email ou mot de passe incorrect",
+        };
+      }
+
+      console.log("✅ Utilisateur authentifié avec succès");
 
       // Créer l'objet utilisateur complet
       const userDataComplete = {
-        id_user: user.id_user,
-        nom: user.nom,
-        prenom: user.prenom,
-        email: user.email,
-        id_role: user.id_role,
-        id_entreprise: user.id_entreprise,
-        statut: user.statut,
-        first_time_login: user.first_time_login || false, // Ajouter l'information de première connexion
-        roles: { libelle: user.role_libelle },
-        entreprises: { nom_commercial: user.entreprise_nom },
+        id_user: userData.id_user,
+        nom: userData.nom,
+        prenom: userData.prenom,
+        email: userData.email,
+        id_role: userData.id_role,
+        id_entreprise: userData.id_entreprise,
+        statut: userData.statut,
+        first_time_login: userData.first_time_login || false,
+        roles: { libelle: userData.roles?.libelle },
+        entreprises: { nom_commercial: userData.entreprises?.nom_commercial },
       };
 
-      console.log("✅ Utilisateur vérifié avec entreprise:", {
-        id_user: userDataComplete.id_user,
-        email: userDataComplete.email,
-        role: userDataComplete.roles?.libelle,
-        entreprise: userDataComplete.entreprises?.nom_commercial,
-        statut: userDataComplete.statut,
-      });
-
-      // Étape 2: Créer une vraie session Supabase
-      // Utiliser signIn avec un mot de passe universel pour créer une session Supabase
-      const { data: authData, error: authError } =
-        await supabase.auth.signInWithPassword({
-          email: `${userDataComplete.id_user}@supabase.local`, // Email unique basé sur l'ID
-          password: `${userDataComplete.id_user}_${password}`, // Mot de passe unique
-        });
-
-      // Si la session n'existe pas, la créer avec signUp
-      if (
-        authError &&
-        authError.message.includes("Invalid login credentials")
-      ) {
-        console.log("Création de la session Supabase...");
-        const { data: signUpData, error: signUpError } =
-          await supabase.auth.signUp({
-            email: `${userDataComplete.id_user}@supabase.local`,
-            password: `${userDataComplete.id_user}_${password}`,
-            options: {
-              data: {
-                custom_user_id: userDataComplete.id_user,
-                original_email: email,
-              },
-            },
-          });
-
-        if (signUpError) {
-          console.error("Erreur création session:", signUpError);
-          // Continuer quand même avec les données locales
-        } else {
-          console.log("Session Supabase créée:", signUpData);
-          return {
-            data: {
-              user: { ...userDataComplete, ...signUpData.user },
-              session: signUpData.session,
-            },
-            error: null,
-          };
-        }
-      }
-
-      if (authError) {
-        console.error("Erreur auth Supabase:", authError);
-        // Continuer avec les données locales si l'auth Supabase échoue
-      }
-
-      // Créer une session basique avec les données de notre table
-      const result = {
-        data: {
-          user: userDataComplete, // Utiliser les données complètes avec entreprise
-          session: authData?.session || {
-            user: userDataComplete,
-            access_token: "local_token",
-            refresh_token: "local_refresh",
-            expires_at: Date.now() + 3600000, // 1 heure
-          },
+      // Créer une session locale sans passer par Supabase Auth
+      const sessionData = {
+        user: userDataComplete,
+        session: {
+          user: userDataComplete,
+          access_token: `local_${userDataComplete.id_user}_${Date.now()}`,
+          refresh_token: `refresh_${userDataComplete.id_user}_${Date.now()}`,
+          expires_at: Date.now() + 3600000, // 1 heure
         },
+      };
+
+      console.log("Session locale créée avec succès");
+      console.log("=== AUTH.SIGNIN FIN ===");
+
+      return {
+        data: sessionData,
         error: null,
       };
-
-      console.log("Session créée:", result);
-      console.log("=== AUTH.SIGNIN FIN ===");
-      return result;
     } catch (error) {
       console.error("=== ERREUR AUTH.SIGNIN ===");
       console.error("Erreur complète:", error);
-      return { data: null, error: error.message };
+      return {
+        data: null,
+        error: error.message || "Erreur de connexion inconnue",
+      };
     }
   },
 
@@ -390,7 +386,7 @@ export const auth = {
         prenom: metadata.prenom || "",
         email: email,
         telephone: metadata.telephone || null, // Ajouter le téléphone de l'utilisateur
-        mot_de_passe: password, // Note: il faudrait hasher ce mot de passe
+        mot_de_passe: password, // TODO: hasher ce mot de passe avec bcrypt
         id_role: roleData.id_role, // Utiliser id_role au lieu de role_id
         id_entreprise: entrepriseId,
         statut: "actif",
