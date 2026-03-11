@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { categories } from "../../config/supabase";
 import { useAuth } from "../../hooks/useAuthHook.js";
-import { useNotification } from "../../hooks/useNotification";
 import Notification from "../../components/Notification";
 import {
   Plus,
@@ -24,12 +23,15 @@ function Categories() {
   const [categoriesList, setCategoriesList] = useState([]);
   const [entrepotsList, setEntrepotsList] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterNom, setFilterNom] = useState("");
+  const [filterEntrepot, setFilterEntrepot] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingCategory, setDeletingCategory] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const { profile } = useAuth();
-  const { showSuccess, showError } = useNotification();
   const [notification, setNotification] = useState(null);
 
   const [formData, setFormData] = useState({
@@ -50,11 +52,14 @@ function Categories() {
       setCategoriesList(data || []);
     } catch (err) {
       setError(err.message || "Erreur lors du chargement des catégories");
-      showError("Erreur lors du chargement des catégories");
+      setNotification({
+        type: "error",
+        message: "Erreur lors du chargement des catégories",
+      });
     } finally {
       setLoading(false);
     }
-  }, [profile?.id_entreprise, showError]);
+  }, [profile?.id_entreprise]);
 
   // Générer une référence à partir de la catégorie pour affichage
   const getCategoryReference = (category) => {
@@ -90,15 +95,69 @@ function Categories() {
     }
   }, [profile?.id_entreprise]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filteredCategories = categoriesList.filter((category) =>
-    category.nom_categorie.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const filteredCategories = categoriesList.filter((category) => {
+    // Filtre par nom (si renseigné)
+    const nomMatch =
+      !filterNom ||
+      category.nom_categorie.toLowerCase().includes(filterNom.toLowerCase());
+
+    // Filtre par entrepôt (si renseigné)
+    const entrepotMatch =
+      !filterEntrepot || category.id_entrepot === filterEntrepot;
+
+    // Filtre par recherche globale (si renseignée)
+    const searchMatch =
+      !searchTerm ||
+      category.nom_categorie.toLowerCase().includes(searchTerm.toLowerCase());
+
+    return nomMatch && entrepotMatch && searchMatch;
+  });
+
+  // Fonction pour vérifier si une catégorie existe déjà dans un entrepôt
+  const checkCategoryWarehouseDuplicate = async (
+    nomCategorie,
+    idEntrepot,
+    editingId = null,
+  ) => {
+    try {
+      const { data, error } = await categories.getAll(profile.id_entreprise);
+      if (error) throw error;
+
+      const duplicate = data?.find(
+        (cat) =>
+          cat.nom_categorie.toLowerCase() === nomCategorie.toLowerCase() &&
+          cat.id_entrepot === idEntrepot &&
+          cat.id_categorie !== editingId, // Exclure la catégorie en cours de modification
+      );
+
+      return { exists: !!duplicate, duplicate };
+    } catch (error) {
+      console.error("Erreur vérification doublon catégorie:", error);
+      return { exists: false, duplicate: null };
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!profile?.id_entreprise) return;
 
     try {
+      // Vérifier les doublons de catégorie dans le même entrepôt
+      const { exists, duplicate } = await checkCategoryWarehouseDuplicate(
+        formData.nom_categorie,
+        formData.id_entrepot,
+        editingCategory?.id_categorie,
+      );
+
+      if (exists) {
+        const ref = getCategoryReference(duplicate);
+        setNotification({
+          type: "error",
+          message: `La catégorie "${formData.nom_categorie}" existe déjà dans cet entrepôt (${ref}). Veuillez utiliser un nom différent ou un autre entrepôt.`,
+        });
+        return;
+      }
+
       const categoryData = {
         nom_categorie: formData.nom_categorie,
         id_entrepot: formData.id_entrepot,
@@ -120,19 +179,24 @@ function Categories() {
       await loadData(); // Recharger les données
       resetForm();
 
-      showSuccess(
-        editingCategory
+      setNotification({
+        type: "success",
+        message: editingCategory
           ? "Catégorie modifiée avec succès"
           : "Catégorie ajoutée avec succès",
-      );
+      });
     } catch (err) {
-      showError(err.message || "Erreur lors de la sauvegarde de la catégorie");
+      setNotification({
+        type: "error",
+        message: err.message || "Erreur lors de la sauvegarde de la catégorie",
+      });
     }
   };
 
   const resetForm = () => {
     setFormData({
       nom_categorie: "",
+      id_entrepot: "",
     });
     setShowAddModal(false);
     setEditingCategory(null);
@@ -142,23 +206,70 @@ function Categories() {
     setEditingCategory(category);
     setFormData({
       nom_categorie: category.nom_categorie,
+      id_entrepot: category.id_entrepot,
     });
     setShowAddModal(true);
   };
 
   const handleDelete = async (id_categorie) => {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer cette catégorie ?"))
-      return;
+    // Trouver la catégorie à supprimer
+    const category = categoriesList.find(
+      (c) => c.id_categorie === id_categorie,
+    );
+    if (!category) return;
 
+    // Si des produits sont associés, afficher une notification informative
+    if (category.nombre_produits > 0) {
+      setNotification({
+        type: "error",
+        message: `Impossible de supprimer la catégorie "${category.nom_categorie}" car elle contient ${category.nombre_produits} produit(s) associé(s). Veuillez d'abord supprimer ou déplacer ces produits.`,
+      });
+      return;
+    }
+
+    // Si aucun produit associé, supprimer directement sans confirmation
     try {
-      const { error } = await categories.delete(id_categorie);
+      const { error } = await categories.delete(category.id_categorie);
       if (error) throw error;
 
       await loadData(); // Recharger les données
-      showSuccess("Catégorie supprimée avec succès");
+      setNotification({
+        type: "success",
+        message: `Catégorie "${category.nom_categorie}" supprimée avec succès`,
+      });
     } catch (err) {
-      showError(err.message || "Erreur lors de la suppression de la catégorie");
+      setNotification({
+        type: "error",
+        message: err.message || "Erreur lors de la suppression de la catégorie",
+      });
     }
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingCategory) return;
+
+    try {
+      const { error } = await categories.delete(deletingCategory.id_categorie);
+      if (error) throw error;
+
+      await loadData(); // Recharger les données
+      setNotification({
+        type: "success",
+        message: "Catégorie supprimée avec succès",
+      });
+      setShowDeleteModal(false);
+      setDeletingCategory(null);
+    } catch (err) {
+      setNotification({
+        type: "error",
+        message: err.message || "Erreur lors de la suppression de la catégorie",
+      });
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setDeletingCategory(null);
   };
 
   const colors = [
@@ -246,16 +357,65 @@ function Categories() {
         </div>
       ) : (
         <>
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Rechercher une catégorie..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-            />
+          {/* Search et Filtres */}
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Barre de recherche globale */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Rechercher une catégorie..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                />
+              </div>
+
+              {/* Filtre par nom */}
+              <div>
+                <input
+                  type="text"
+                  placeholder="Filtrer par nom..."
+                  value={filterNom}
+                  onChange={(e) => setFilterNom(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                />
+              </div>
+
+              {/* Filtre par entrepôt */}
+              <div>
+                <select
+                  value={filterEntrepot}
+                  onChange={(e) => setFilterEntrepot(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                >
+                  <option value="">Tous les entrepôts</option>
+                  {entrepotsList.map((entrepot) => (
+                    <option
+                      key={entrepot.id_entrepot}
+                      value={entrepot.id_entrepot}
+                    >
+                      {entrepot.nom_entrepot}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Bouton de réinitialisation */}
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setFilterNom("");
+                    setFilterEntrepot("");
+                  }}
+                  className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Réinitialiser
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Categories Table */}
@@ -355,7 +515,6 @@ function Categories() {
                               }
                               className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                               title="Supprimer"
-                              disabled={category.nombre_produits > 0}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -436,6 +595,60 @@ function Categories() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmation de suppression */}
+      {showDeleteModal && deletingCategory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-red-600">
+                ⚠️ Confirmation de suppression
+              </h3>
+              <button
+                onClick={cancelDelete}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-700 mb-2">
+                Êtes-vous sûr de vouloir supprimer cette catégorie ?
+              </p>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="font-medium text-gray-900">
+                  {deletingCategory.nom_categorie}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Référence: {getCategoryReference(deletingCategory)}
+                </p>
+                {deletingCategory.nombre_produits > 0 && (
+                  <p className="text-sm text-amber-600 mt-2">
+                    ⚠️ {deletingCategory.nombre_produits} produit(s) associé(s)
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Supprimer
+              </button>
+            </div>
           </div>
         </div>
       )}

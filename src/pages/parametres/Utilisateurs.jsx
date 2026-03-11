@@ -35,31 +35,67 @@ const ROLES = [
   { id: "550e8400-e29b-41d4-a716-446655440003", libelle: "Employé" },
   { id: "5a0fa61f-9db1-4caa-a030-c1f6c5c99ee3", libelle: "Admin" },
   { id: "a033e29c-94f6-4eb3-9243-a9424ec20357", libelle: "Super User" },
+  {
+    id: "ad7b07cb-2ba3-4ba1-a8d6-f053c6b46b46",
+    libelle: "Directeur commercial",
+  },
 ];
 
 const ADMIN_ROLE_ID = "5a0fa61f-9db1-4caa-a030-c1f6c5c99ee3";
 const SUPER_USER_ROLE_ID = "a033e29c-94f6-4eb3-9243-a9424ec20357";
+const DIRECTEUR_COMMERCIAL_ROLE_ID = "ad7b07cb-2ba3-4ba1-a8d6-f053c6b46b46";
 
-// Filtrer les rôles disponibles selon le rôle de l'utilisateur connecté
-const getAvailableRoles = (currentUser) => {
+// Fonction pour vérifier si un Directeur commercial existe déjà pour une entreprise
+const checkDirecteurCommercialExists = async (entrepriseId) => {
+  if (!entrepriseId) return false;
+
+  try {
+    const supabaseAdmin = createAdminClient();
+    const { data, error } = await supabaseAdmin
+      .from("utilisateurs")
+      .select("id_user")
+      .eq("id_role", DIRECTEUR_COMMERCIAL_ROLE_ID)
+      .eq("id_entreprise", entrepriseId)
+      .eq("statut", "actif")
+      .limit(1);
+
+    return !error && data && data.length > 0;
+  } catch (error) {
+    console.error("Erreur vérification Directeur commercial:", error);
+    return false;
+  }
+};
+
+// Filtrer les rôles disponibles selon le rôle de l'utilisateur connecté et l'entreprise
+const getAvailableRoles = async (currentUser, entrepriseId = null) => {
   if (!currentUser) return ROLES;
 
   const userRoleId = currentUser.role_id || currentUser.id_role;
+  let availableRoles = [...ROLES];
 
   // Si l'utilisateur est Admin, exclure seulement le rôle Admin (mais peut créer Super User)
   if (userRoleId === ADMIN_ROLE_ID) {
-    return ROLES.filter((role) => role.id !== ADMIN_ROLE_ID);
+    availableRoles = availableRoles.filter((role) => role.id !== ADMIN_ROLE_ID);
   }
 
   // Si l'utilisateur est Super User, exclure Admin et Super User (ne peut créer que des rangs inférieurs)
   if (userRoleId === SUPER_USER_ROLE_ID) {
-    return ROLES.filter(
+    availableRoles = availableRoles.filter(
       (role) => role.id !== ADMIN_ROLE_ID && role.id !== SUPER_USER_ROLE_ID,
     );
   }
 
-  // Sinon, retourner tous les rôles
-  return ROLES;
+  // Vérifier si un Directeur commercial existe déjà pour cette entreprise
+  if (entrepriseId) {
+    const directeurExists = await checkDirecteurCommercialExists(entrepriseId);
+    if (directeurExists) {
+      availableRoles = availableRoles.filter(
+        (role) => role.id !== DIRECTEUR_COMMERCIAL_ROLE_ID,
+      );
+    }
+  }
+
+  return availableRoles;
 };
 
 // Vérifier si l'utilisateur connecté est Admin ou Super User
@@ -101,7 +137,14 @@ const Utilisateurs = () => {
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState("");
   const [selectedBulkRole, setSelectedBulkRole] = useState("");
+  const [availableRoles, setAvailableRoles] = useState(ROLES);
   const [bulkUsers, setBulkUsers] = useState("");
+
+  // États pour la validation en temps réel
+  const [emailExists, setEmailExists] = useState(false);
+  const [phoneExists, setPhoneExists] = useState(false);
+  const [emailValidationMessage, setEmailValidationMessage] = useState("");
+  const [phoneValidationMessage, setPhoneValidationMessage] = useState("");
 
   // États pour le modal d'assignation d'entrepôt
   const [showAssignWarehouseModal, setShowAssignWarehouseModal] =
@@ -160,11 +203,201 @@ const Utilisateurs = () => {
     }
   }, [profile]);
 
+  // Charger les rôles disponibles selon l'entreprise
+  const loadAvailableRoles = useCallback(async () => {
+    if (profile?.id_entreprise) {
+      const roles = await getAvailableRoles(profile, profile.id_entreprise);
+      setAvailableRoles(roles);
+    } else {
+      const roles = await getAvailableRoles(profile);
+      setAvailableRoles(roles);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    loadAvailableRoles();
+  }, [loadAvailableRoles]);
+
+  // Fonctions de validation en temps réel
+  const checkEmailExists = async (email) => {
+    if (!email || email.length < 3) {
+      setEmailExists(false);
+      setEmailValidationMessage("");
+      return;
+    }
+
+    try {
+      const supabaseAdmin = createAdminClient();
+      const { data, error } = await supabaseAdmin
+        .from("utilisateurs")
+        .select("id_user, email")
+        .eq("email", email.toLowerCase())
+        .neq("id_user", selectedUser?.id_user || "") // Exclure l'utilisateur en cours de modification
+        .limit(1);
+
+      if (error) {
+        console.error("Erreur vérification email:", error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setEmailExists(true);
+        setEmailValidationMessage(
+          "Cet email est déjà utilisé par un autre utilisateur",
+        );
+      } else {
+        setEmailExists(false);
+        setEmailValidationMessage("");
+      }
+    } catch (error) {
+      console.error("Erreur checkEmailExists:", error);
+    }
+  };
+
+  const checkPhoneExists = async (phone) => {
+    if (!phone || phone.length < 8) {
+      setPhoneExists(false);
+      setPhoneValidationMessage("");
+      return;
+    }
+
+    try {
+      const supabaseAdmin = createAdminClient();
+      const { data, error } = await supabaseAdmin
+        .from("utilisateurs")
+        .select("id_user, telephone")
+        .eq("telephone", phone)
+        .neq("id_user", selectedUser?.id_user || "") // Exclure l'utilisateur en cours de modification
+        .limit(1);
+
+      if (error) {
+        console.error("Erreur vérification téléphone:", error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setPhoneExists(true);
+        setPhoneValidationMessage(
+          "Ce numéro de téléphone est déjà utilisé par un autre utilisateur",
+        );
+      } else {
+        setPhoneExists(false);
+        setPhoneValidationMessage("");
+      }
+    } catch (error) {
+      console.error("Erreur checkPhoneExists:", error);
+    }
+  };
+
+  // Réinitialiser les validations lors de l'ouverture du modal
+  const resetValidationStates = () => {
+    setEmailExists(false);
+    setPhoneExists(false);
+    setEmailValidationMessage("");
+    setPhoneValidationMessage("");
+  };
+
+  // Fonction pour vérifier si un utilisateur est gérant d'entrepôt
+  const checkUserIsWarehouseManager = async (userId) => {
+    try {
+      const supabaseAdmin = createAdminClient();
+      const { data, error } = await supabaseAdmin
+        .from("entrepots")
+        .select("id_entrepot, nom_entrepot")
+        .eq("id_gerant", userId);
+
+      if (error) {
+        console.error("Erreur vérification gérant d'entrepôt:", error);
+        return { isManager: false, warehouses: [] };
+      }
+
+      return {
+        isManager: data && data.length > 0,
+        warehouses: data || [],
+      };
+    } catch (error) {
+      console.error("Erreur checkUserIsWarehouseManager:", error);
+      return { isManager: false, warehouses: [] };
+    }
+  };
+
+  // Fonction pour désassigner un utilisateur de tous ses entrepôts
+  const unassignUserFromWarehouses = async (userId) => {
+    try {
+      const supabaseAdmin = createAdminClient();
+      const { error } = await supabaseAdmin
+        .from("entrepots")
+        .update({ id_gerant: null })
+        .eq("id_gerant", userId);
+
+      if (error) {
+        console.error("Erreur désassignation entrepôts:", error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, error: null };
+    } catch (error) {
+      console.error("Erreur unassignUserFromWarehouses:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Fonction pour vérifier si une catégorie existe déjà dans un entrepôt
+  const checkCategoryExistsInWarehouse = async (warehouseId, categoryId) => {
+    try {
+      const supabaseAdmin = createAdminClient();
+      const { data, error } = await supabaseAdmin
+        .from("produits")
+        .select("id_produit")
+        .eq("id_entrepot", warehouseId)
+        .eq("id_categorie", categoryId)
+        .limit(1);
+
+      if (error) {
+        console.error("Erreur vérification catégorie dans entrepôt:", error);
+        return { exists: false, error: error.message };
+      }
+
+      return {
+        exists: data && data.length > 0,
+        error: null,
+      };
+    } catch (error) {
+      console.error("Erreur checkCategoryExistsInWarehouse:", error);
+      return { exists: false, error: error.message };
+    }
+  };
+
   useEffect(() => {
     if (profile?.id_entreprise) {
       loadUsers();
     }
   }, [profile?.id_entreprise, loadUsers]);
+
+  // Effets pour la validation en temps réel
+  useEffect(() => {
+    if (formData.email) {
+      const timeoutId = setTimeout(() => {
+        checkEmailExists(formData.email);
+      }, 500); // Délai de 500ms pour éviter trop de requêtes
+      return () => clearTimeout(timeoutId);
+    } else {
+      setEmailExists(false);
+      setEmailValidationMessage("");
+    }
+  }, [formData.email, selectedUser?.id_user]);
+
+  useEffect(() => {
+    if (formData.telephone) {
+      const timeoutId = setTimeout(() => {
+        checkPhoneExists(formData.telephone);
+      }, 500); // Délai de 500ms pour éviter trop de requêtes
+      return () => clearTimeout(timeoutId);
+    } else {
+      setPhoneExists(false);
+      setPhoneValidationMessage("");
+    }
+  }, [formData.telephone, selectedUser?.id_user]);
 
   // Fonction pour ouvrir le modal d'assignation d'entrepôt
   const openAssignWarehouseModal = async (warehouse) => {
@@ -495,6 +728,15 @@ const Utilisateurs = () => {
     setLoading(true);
     setError("");
     setSuccess("");
+
+    // Vérifier si l'email ou le téléphone existent déjà
+    if (emailExists || phoneExists) {
+      setError(
+        "Veuillez corriger les erreurs avant de soumettre le formulaire",
+      );
+      setLoading(false);
+      return;
+    }
     setFieldErrors({});
 
     // Valider le formulaire
@@ -570,6 +812,7 @@ const Utilisateurs = () => {
       });
       setFieldErrors({});
       loadUsers();
+      loadAvailableRoles(); // Recharger les rôles disponibles pour mettre à jour l'option DC
     } catch (error) {
       setError("Erreur lors de la création de l'utilisateur: " + error.message);
     } finally {
@@ -584,6 +827,15 @@ const Utilisateurs = () => {
     setError("");
     setSuccess("");
     setFieldErrors({});
+
+    // Vérifier si l'email ou le téléphone existent déjà
+    if (emailExists || phoneExists) {
+      setError(
+        "Veuillez corriger les erreurs avant de soumettre le formulaire",
+      );
+      setLoading(false);
+      return;
+    }
 
     // Valider le formulaire (sans la validation du mot de passe pour la modification)
     const validationErrors = validateEditForm();
@@ -760,6 +1012,7 @@ const Utilisateurs = () => {
       setShowEditModal(false);
       setFieldErrors({});
       loadUsers();
+      loadAvailableRoles(); // Recharger les rôles disponibles pour mettre à jour l'option DC
     } catch (error) {
       setError("Erreur lors de la modification: " + error.message);
     } finally {
@@ -824,6 +1077,19 @@ const Utilisateurs = () => {
         return;
       }
 
+      // Vérifier si l'utilisateur est gérant d'entrepôts
+      const { isManager, warehouses } = await checkUserIsWarehouseManager(
+        selectedUser.id_user,
+      );
+
+      if (isManager && warehouses.length > 0) {
+        setError(
+          `Impossible de supprimer cet utilisateur car il est gérant de ${warehouses.length} entrepôt(s): ${warehouses.map((w) => w.nom_entrepot).join(", ")}. Veuillez d'abord le désassigner de ses entrepôts.`,
+        );
+        setLoading(false);
+        return;
+      }
+
       // Utiliser le client admin pour éviter les problèmes de permissions
       const supabaseAdmin = createAdminClient();
 
@@ -832,12 +1098,30 @@ const Utilisateurs = () => {
         .delete()
         .eq("id_user", selectedUser.id_user);
 
-      if (error) throw error;
-
-      setSuccess("Utilisateur supprimé avec succès!");
-      setShowDeleteModal(false);
-      loadUsers();
+      if (error) {
+        // Gérer spécifiquement l'erreur de contrainte de clé étrangère
+        if (error.message.includes("entrepots_id_gerant_fkey")) {
+          const { isManager: isMgr, warehouses: whs } =
+            await checkUserIsWarehouseManager(selectedUser.id_user);
+          if (isMgr && whs.length > 0) {
+            setError(
+              `Impossible de supprimer cet utilisateur car il est gérant de ${whs.length} entrepôt(s): ${whs.map((w) => w.nom_entrepot).join(", ")}. Veuillez d'abord le désassigner de ses entrepôts.`,
+            );
+          } else {
+            setError(
+              "Impossible de supprimer cet utilisateur car il est référencé comme gérant d'entrepôt.",
+            );
+          }
+        } else {
+          throw error;
+        }
+      } else {
+        setSuccess("Utilisateur supprimé avec succès!");
+        setShowDeleteModal(false);
+        loadUsers();
+      }
     } catch (error) {
+      console.error("Erreur lors de la suppression:", error);
       setError("Erreur lors de la suppression: " + error.message);
     } finally {
       setLoading(false);
@@ -846,6 +1130,7 @@ const Utilisateurs = () => {
 
   // Ouvrir le modal de modification
   const openEditModal = (user) => {
+    resetValidationStates(); // Réinitialiser les états de validation
     setSelectedUser(user);
     setFormData({
       nom: user.nom,
@@ -884,6 +1169,8 @@ const Utilisateurs = () => {
         .filter((line) => line.trim());
       const usersToInsert = [];
       const errors = [];
+      const emailsToCheck = [];
+      const phonesToCheck = [];
 
       // Parser chaque ligne CSV
       for (let i = 0; i < lines.length; i++) {
@@ -917,6 +1204,23 @@ const Utilisateurs = () => {
           continue;
         }
 
+        // Validation téléphone (optionnel mais si fourni, doit être au bon format)
+        if (telephone && telephone.trim()) {
+          const phoneRegex = /^\+229\d{10}$/;
+          if (!phoneRegex.test(telephone)) {
+            errors.push(
+              `Ligne ${i + 1}: Téléphone invalide - ${telephone}. Format attendu: +2290141381577`,
+            );
+            continue;
+          }
+        }
+
+        // Ajouter aux listes pour vérification des doublons
+        emailsToCheck.push(email.toLowerCase());
+        if (telephone && telephone.trim()) {
+          phonesToCheck.push(telephone);
+        }
+
         usersToInsert.push({
           nom: nom.toUpperCase(),
           prenom: prenom,
@@ -933,6 +1237,117 @@ const Utilisateurs = () => {
         setError(`Erreurs de formatage:\n${errors.join("\n")}`);
         setLoading(false);
         return;
+      }
+
+      // Vérifier les doublons dans la même liste CSV
+      const emailCounts = {};
+      const phoneCounts = {};
+      const duplicateEmailsInList = [];
+      const duplicatePhonesInList = [];
+
+      usersToInsert.forEach((user, index) => {
+        // Vérifier les doublons d'emails
+        if (emailCounts[user.email]) {
+          duplicateEmailsInList.push({
+            email: user.email,
+            lines: [emailCounts[user.email], index + 1],
+          });
+        } else {
+          emailCounts[user.email] = index + 1;
+        }
+
+        // Vérifier les doublons de téléphones
+        if (user.telephone) {
+          if (phoneCounts[user.telephone]) {
+            duplicatePhonesInList.push({
+              phone: user.telephone,
+              lines: [phoneCounts[user.telephone], index + 1],
+            });
+          } else {
+            phoneCounts[user.telephone] = index + 1;
+          }
+        }
+      });
+
+      const listDuplicateErrors = [];
+      duplicateEmailsInList.forEach((dup) => {
+        listDuplicateErrors.push(
+          `Email "${dup.email}" dupliqué aux lignes ${dup.lines.join(", ")}`,
+        );
+      });
+      duplicatePhonesInList.forEach((dup) => {
+        listDuplicateErrors.push(
+          `Téléphone "${dup.phone}" dupliqué aux lignes ${dup.lines.join(", ")}`,
+        );
+      });
+
+      if (listDuplicateErrors.length > 0) {
+        setError(
+          `Erreurs de doublons dans la liste:\n${listDuplicateErrors.join("\n")}`,
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Vérifier les doublons d'emails en base de données
+      if (emailsToCheck.length > 0) {
+        const { data: existingEmails, error: emailError } = await supabaseAdmin
+          .from("utilisateurs")
+          .select("email")
+          .in("email", emailsToCheck);
+
+        if (emailError) {
+          console.error("Erreur vérification emails:", emailError);
+          setError(
+            `Erreur lors de la vérification des emails: ${emailError.message}`,
+          );
+          setLoading(false);
+          return;
+        }
+
+        if (existingEmails && existingEmails.length > 0) {
+          const duplicateEmails = existingEmails.map((u) => u.email);
+          const duplicateLines = usersToInsert
+            .filter((u) => duplicateEmails.includes(u.email))
+            .map((u) => usersToInsert.indexOf(u) + 1);
+
+          setError(
+            `Erreurs de doublons:\nLes emails suivants existent déjà: ${duplicateEmails.join(", ")} (lignes: ${duplicateLines.join(", ")})`,
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Vérifier les doublons de téléphones en base de données
+      if (phonesToCheck.length > 0) {
+        const { data: existingPhones, error: phoneError } = await supabaseAdmin
+          .from("utilisateurs")
+          .select("telephone")
+          .in("telephone", phonesToCheck)
+          .not("telephone", "is", null);
+
+        if (phoneError) {
+          console.error("Erreur vérification téléphones:", phoneError);
+          setError(
+            `Erreur lors de la vérification des téléphones: ${phoneError.message}`,
+          );
+          setLoading(false);
+          return;
+        }
+
+        if (existingPhones && existingPhones.length > 0) {
+          const duplicatePhones = existingPhones.map((u) => u.telephone);
+          const duplicateLines = usersToInsert
+            .filter((u) => u.telephone && duplicatePhones.includes(u.telephone))
+            .map((u) => usersToInsert.indexOf(u) + 1);
+
+          setError(
+            `Erreurs de doublons:\nLes téléphones suivants existent déjà: ${duplicatePhones.join(", ")} (lignes: ${duplicateLines.join(", ")})`,
+          );
+          setLoading(false);
+          return;
+        }
       }
 
       // Insérer les utilisateurs en lot
@@ -952,6 +1367,7 @@ const Utilisateurs = () => {
         setSelectedBulkRole("");
         setBulkUsers("");
         loadUsers(); // Rafraîchir la liste
+        loadAvailableRoles(); // Recharger les rôles disponibles pour mettre à jour l'option DC
       }
     } catch (error) {
       console.error("Erreur dans handleBulkAddUsers:", error);
@@ -1019,6 +1435,7 @@ const Utilisateurs = () => {
                 </button>
                 <button
                   onClick={() => {
+                    resetValidationStates(); // Réinitialiser les états de validation
                     setShowAddModal(true);
                     setFormData({
                       nom: "",
@@ -1076,7 +1493,7 @@ const Utilisateurs = () => {
               setFilterRole={setFilterRole}
               filterStatus={filterStatus}
               setFilterStatus={setFilterStatus}
-              availableRoles={getAvailableRoles(profile)}
+              availableRoles={availableRoles}
             />
           </div>
           {/* Section 3: Tableau des utilisateurs */}
@@ -1202,12 +1619,19 @@ const Utilisateurs = () => {
                       required
                       placeholder="exemple@email.com"
                       className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        fieldErrors.email ? "border-red-500" : "border-gray-300"
+                        fieldErrors.email || emailExists
+                          ? "border-red-500"
+                          : "border-gray-300"
                       }`}
                     />
                     {fieldErrors.email && (
                       <p className="mt-1 text-xs text-red-500">
                         {fieldErrors.email}
+                      </p>
+                    )}
+                    {emailValidationMessage && (
+                      <p className="mt-1 text-xs text-red-500">
+                        {emailValidationMessage}
                       </p>
                     )}
                   </div>
@@ -1226,7 +1650,7 @@ const Utilisateurs = () => {
                       pattern="\+229\d{10}"
                       title="Format: +2290141381577"
                       className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        fieldErrors.telephone
+                        fieldErrors.telephone || phoneExists
                           ? "border-red-500"
                           : "border-gray-300"
                       }`}
@@ -1234,6 +1658,11 @@ const Utilisateurs = () => {
                     {fieldErrors.telephone && (
                       <p className="mt-1 text-xs text-red-500">
                         {fieldErrors.telephone}
+                      </p>
+                    )}
+                    {phoneValidationMessage && (
+                      <p className="mt-1 text-xs text-red-500">
+                        {phoneValidationMessage}
                       </p>
                     )}
                     <p className="mt-1 text-xs text-gray-500">
@@ -1257,7 +1686,7 @@ const Utilisateurs = () => {
                       }`}
                     >
                       <option value="">Sélectionner un rôle</option>
-                      {getAvailableRoles(profile).map((role) => (
+                      {availableRoles.map((role) => (
                         <option key={role.id} value={role.id}>
                           {role.libelle}
                         </option>
@@ -1337,12 +1766,40 @@ const Utilisateurs = () => {
           {showDeleteModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                <div className="flex items-center mb-4">
-                  <AlertCircle className="w-6 h-6 text-red-500 mr-2" />
-                  <h2 className="text-xl font-bold">
-                    Confirmer la suppression
-                  </h2>
-                </div>
+                <h2 className="text-xl font-bold mb-4 text-red-600">
+                  ⚠️ Confirmation de suppression
+                </h2>
+
+                {/* Alerte si l'utilisateur est gérant d'entrepôt */}
+                {(() => {
+                  const currentRole =
+                    selectedUser?.role_id || selectedUser?.id_role;
+                  const isGerant = [
+                    "1dd58d9b-ab78-4b62-ac8d-1d6234e89e81", // Gerant Principal
+                    "2330adb2-bce2-4d87-81de-15cc2b2cb325", // Gerant
+                  ].includes(currentRole);
+
+                  if (!isGerant) return null;
+
+                  return (
+                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm">
+                          <p className="font-medium text-red-800 mb-1">
+                            Gérant d'entrepôt détecté
+                          </p>
+                          <p className="text-red-700">
+                            Cet utilisateur est un gérant. Le supprimer peut
+                            affecter la gestion des entrepôts. Les entrepôts
+                            gérés par cet utilisateur deviendront sans
+                            gestionnaire.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <p className="text-gray-600 mb-6">
                   Êtes-vous sûr de vouloir supprimer l'utilisateur "
@@ -1406,7 +1863,7 @@ const Utilisateurs = () => {
                       required
                     >
                       <option value="">Sélectionner un rôle</option>
-                      {getAvailableRoles(profile).map((role) => (
+                      {availableRoles.map((role) => (
                         <option key={role.id} value={role.id}>
                           {role.libelle}
                         </option>
@@ -1449,9 +1906,8 @@ const Utilisateurs = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Liste des utilisateurs (
                         {
-                          getAvailableRoles(profile).find(
-                            (r) => r.id === selectedBulkRole,
-                          )?.libelle
+                          availableRoles.find((r) => r.id === selectedBulkRole)
+                            ?.libelle
                         }
                         ) *
                       </label>

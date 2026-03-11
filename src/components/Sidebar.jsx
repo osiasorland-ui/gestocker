@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../config/supabase.js";
+import { useAuth } from "../hooks/useAuthHook.js";
 import {
   Building2,
   Package,
@@ -20,6 +21,7 @@ import {
 const Sidebar = ({ isOpen, profile, onLogout, onProfileUpdate }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { updateProfileLocal } = useAuth();
   const [expandedSections, setExpandedSections] = useState({});
   const inputRef = useRef();
 
@@ -248,6 +250,7 @@ const Sidebar = ({ isOpen, profile, onLogout, onProfileUpdate }) => {
         console.log("Base64 length:", base64.length);
         console.log("Base64 preview:", base64);
 
+        // Update database
         const { error } = await supabase
           .from("entreprises")
           .update({ logo_path: base64 })
@@ -255,53 +258,34 @@ const Sidebar = ({ isOpen, profile, onLogout, onProfileUpdate }) => {
 
         if (error) {
           console.error("Error updating logo:", error);
-        } else {
-          console.log("Logo updated successfully");
+          return;
+        }
 
-          // Update the profile state directly
-          if (profile && profile.entreprises) {
-            const updatedProfile = {
-              ...profile,
-              entreprises: {
-                ...profile.entreprises,
-                logo_path: base64,
-              },
-            };
+        console.log("Logo updated successfully in database");
 
-            // Call the parent's update function if available
-            if (onProfileUpdate && typeof onProfileUpdate === "function") {
-              // Since updateProfile expects updates for the user table,
-              // we'll update the local state directly
-              setCurrentLogoSrc(base64);
+        // Update local state immediately for instant feedback
+        setCurrentLogoSrc(base64);
 
-              // Also update the profile in the context by triggering a re-fetch
-              const {
-                data: { user },
-              } = await supabase.auth.getUser();
-              if (user) {
-                const { data: profileData } = await supabase
-                  .from("utilisateurs")
-                  .select(
-                    `
-                    *,
-                    entreprises (*),
-                    roles (*)
-                  `,
-                  )
-                  .eq("id_user", user.id)
-                  .single();
+        // Update the profile in context immediately using updateProfileLocal
+        if (profile && profile.entreprises) {
+          const updatedProfile = {
+            ...profile,
+            entreprises: {
+              ...profile.entreprises,
+              logo_path: base64,
+            },
+          };
 
-                if (profileData && onProfileUpdate) {
-                  // Create a custom update function that just sets the profile
-                  onProfileUpdate(profileData);
-                }
-              }
-            } else {
-              // Fallback: update current logo src directly
-              setCurrentLogoSrc(base64);
-            }
+          // Use the new local update function for instant update
+          updateProfileLocal(updatedProfile);
+
+          // Also call the parent's update function if available (for compatibility)
+          if (onProfileUpdate && typeof onProfileUpdate === "function") {
+            onProfileUpdate(updatedProfile);
           }
         }
+
+        console.log("Logo updated successfully and displayed immediately");
       } catch (error) {
         console.error("Error converting file:", error);
       }
@@ -330,12 +314,15 @@ const Sidebar = ({ isOpen, profile, onLogout, onProfileUpdate }) => {
 
       {/* Header avec logo et infos entreprise */}
       <div className="flex flex-col items-center text-center mb-2 pb-4 border-b border-gray-200">
-        <div className="relative mb-3 cursor-pointer" onClick={handleLogoClick}>
+        <div
+          className={`relative mb-3 ${canManageUsers() ? "cursor-pointer" : ""}`}
+          onClick={canManageUsers() ? handleLogoClick : undefined}
+        >
           {currentLogoSrc ? (
             <img
               src={currentLogoSrc}
               alt="Logo entreprise"
-              className="p-2 w-20 h-20 border border-gray-300 rounded-xl"
+              className={`p-2 w-20 h-20 border border-gray-300 rounded-xl ${canManageUsers() ? "hover:border-blue-500" : ""}`}
               onError={(e) => {
                 e.target.style.display = "none";
                 e.target.nextElementSibling.style.display = "flex";
@@ -348,6 +335,23 @@ const Sidebar = ({ isOpen, profile, onLogout, onProfileUpdate }) => {
           >
             <Building2 className="w-6 h-6 text-white" />
           </div>
+          {canManageUsers() && (
+            <div className="absolute bottom-0 right-0 bg-blue-500 text-white rounded-full p-1 opacity-0 hover:opacity-100 transition-opacity">
+              <svg
+                className="w-3 h-3"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                />
+              </svg>
+            </div>
+          )}
         </div>
 
         <div className="w-full">

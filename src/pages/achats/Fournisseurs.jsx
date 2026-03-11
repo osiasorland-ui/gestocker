@@ -61,6 +61,9 @@ function Fournisseurs() {
 
   // États pour la validation en temps réel
   const [fieldErrors, setFieldErrors] = useState({
+    nom_fournisseur: false,
+    telephone_fournisseur: false,
+    email_fournisseur: false,
     contact_nom: false,
     contact_telephone: false,
     contact_email: false,
@@ -72,12 +75,12 @@ function Fournisseurs() {
 
   const [formData, setFormData] = useState({
     nom_fournisseur: "",
+    telephone_fournisseur: "",
+    email_fournisseur: "",
     contact_nom: "",
     contact_telephone: "",
     contact_email: "",
     adresse: "",
-    ville: "",
-    pays: "",
     conditions_paiement: "",
     delai_livraison: "",
     rating: 0,
@@ -127,6 +130,49 @@ function Fournisseurs() {
     let hasError = false;
 
     switch (fieldName) {
+      case "nom_fournisseur":
+        // Vérifier si le nom du fournisseur existe déjà
+        hasError = fournisseursList.some(
+          (f) =>
+            f.nom_fournisseur &&
+            f.nom_fournisseur.toLowerCase() === trimmedValue.toLowerCase() &&
+            (!editingFournisseur ||
+              f.id_fournisseur !== editingFournisseur.id_fournisseur),
+        );
+        break;
+
+      case "telephone_fournisseur":
+        {
+          // Vérifier le format (+22901xxxxxxxx = 12 chiffres après +229)
+          const phoneRegex = /^\+22901\d{8}$/;
+          hasError =
+            !phoneRegex.test(trimmedValue) ||
+            fournisseursList.some(
+              (f) =>
+                f.telephone_fournisseur === trimmedValue &&
+                (!editingFournisseur ||
+                  f.id_fournisseur !== editingFournisseur.id_fournisseur),
+            );
+        }
+        break;
+
+      case "email_fournisseur":
+        if (trimmedValue) {
+          const emailRegex =
+            /^[A-Za-z0-9._%+-]+@(gmail\.com|outlook\.com|outlook\.fr)$/;
+          hasError =
+            !emailRegex.test(trimmedValue) ||
+            fournisseursList.some(
+              (f) =>
+                f.email_fournisseur &&
+                f.email_fournisseur.toLowerCase() ===
+                  trimmedValue.toLowerCase() &&
+                (!editingFournisseur ||
+                  f.id_fournisseur !== editingFournisseur.id_fournisseur),
+            );
+        }
+        break;
+
       case "contact_nom":
         // Vérifier si le nom du contact existe déjà
         hasError = fournisseursList.some(
@@ -170,6 +216,11 @@ function Fournisseurs() {
               );
           }
         }
+        break;
+
+      case "ville":
+      case "pays":
+        // Ces champs ne sont plus utilisés
         break;
 
       default:
@@ -228,6 +279,16 @@ function Fournisseurs() {
       return;
     }
 
+    if (!formData.telephone_fournisseur?.trim()) {
+      showError("Le téléphone du fournisseur est obligatoire");
+      return;
+    }
+
+    if (!formData.email_fournisseur?.trim()) {
+      showError("L'email du fournisseur est obligatoire");
+      return;
+    }
+
     if (!formData.contact_nom?.trim()) {
       showError("Le nom du contact est obligatoire");
       return;
@@ -243,10 +304,7 @@ function Fournisseurs() {
       return;
     }
 
-    // Les champs suivants ne sont pas obligatoires selon la DB (ont des valeurs par défaut)
-    // ville, pays, conditions_paiement, delai_livraison ont des valeurs par défaut ''
-    // rating peut être null (pas de contrainte NOT NULL)
-    // adresse est obligatoire selon la DB (NOT NULL)
+    // L'adresse reste obligatoire selon la DB (NOT NULL)
     if (!formData.adresse?.trim()) {
       showError("L'adresse est obligatoire");
       return;
@@ -255,13 +313,13 @@ function Fournisseurs() {
     try {
       const fournisseurData = {
         nom_fournisseur: formData.nom_fournisseur.trim(),
+        telephone_fournisseur: formData.telephone_fournisseur.trim(),
+        email_fournisseur: formData.email_fournisseur.trim(),
         contact_nom: formData.contact_nom.trim(),
         contact_telephone: formData.contact_telephone.trim(),
         contact_email: formData.contact_email.trim(),
         adresse: formData.adresse.trim(),
         // Champs optionnels - n'envoyer que s'ils sont remplis
-        ...(formData.ville?.trim() && { ville: formData.ville.trim() }),
-        ...(formData.pays?.trim() && { pays: formData.pays.trim() }),
         ...(formData.conditions_paiement?.trim() && {
           conditions_paiement: formData.conditions_paiement.trim(),
         }),
@@ -320,17 +378,20 @@ function Fournisseurs() {
   const resetForm = () => {
     setFormData({
       nom_fournisseur: "",
+      telephone_fournisseur: "",
+      email_fournisseur: "",
       contact_nom: "",
       contact_telephone: "",
       contact_email: "",
       adresse: "",
-      ville: "",
-      pays: "",
       conditions_paiement: "",
       delai_livraison: "",
       rating: 0,
     });
     setFieldErrors({
+      nom_fournisseur: false,
+      telephone_fournisseur: false,
+      email_fournisseur: false,
       contact_nom: false,
       contact_telephone: false,
       contact_email: false,
@@ -343,18 +404,21 @@ function Fournisseurs() {
     setEditingFournisseur(fournisseur);
     setFormData({
       nom_fournisseur: fournisseur.nom_fournisseur,
+      telephone_fournisseur: fournisseur.telephone_fournisseur || "",
+      email_fournisseur: fournisseur.email_fournisseur || "",
       contact_nom: fournisseur.contact_nom,
       contact_telephone: fournisseur.contact_telephone,
       contact_email: fournisseur.contact_email,
       adresse: fournisseur.adresse,
-      ville: fournisseur.ville,
-      pays: fournisseur.pays,
       conditions_paiement: fournisseur.conditions_paiement,
       delai_livraison: fournisseur.delai_livraison,
       rating: fournisseur.rating || 0,
     });
     // Réinitialiser les erreurs lors de l'édition
     setFieldErrors({
+      nom_fournisseur: false,
+      telephone_fournisseur: false,
+      email_fournisseur: false,
       contact_nom: false,
       contact_telephone: false,
       contact_email: false,
@@ -485,28 +549,28 @@ function Fournisseurs() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                       REF
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                       Fournisseur
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                       Contact
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                       Adresse
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                       Conditions paiement
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                       Délai livraison
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
                       Évaluation
                     </th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2 text-right text-sm font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
@@ -545,65 +609,71 @@ function Fournisseurs() {
                         className="hover:bg-gray-50"
                       >
                         <td className="px-4 py-2 whitespace-nowrap text-center">
-                          <div className="text-xs font-medium text-gray-900">
+                          <div className="text-sm font-medium text-gray-900">
                             {`FOURN${String(fournisseursList.indexOf(fournisseur) + 1).padStart(6, "0")}`}
                           </div>
                         </td>
                         <td className="px-4 py-2 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center mr-2">
-                              <Building className="w-4 h-4 text-gray-600" />
-                            </div>
                             <div>
-                              <div className="text-xs font-medium text-gray-900">
+                              <div className="text-sm font-medium text-gray-900">
                                 {fournisseur.nom_fournisseur}
                               </div>
-                              <div className="text-xs text-gray-500">
-                                {fournisseur.contact_nom}
+                              {fournisseur.contact_email && (
+                              <div className="flex items-center gap-1">
+                                <Mail className="w-4 h-4 text-gray-400" />
+                                <span className="text-sm text-gray-600">
+                                  {fournisseur.email_fournisseur}
+                                </span>
                               </div>
+                            )}
+                            <div className="flex items-center gap-1 mb-1">
+                              <Phone className="w-4 h-4 text-gray-400" />
+                              <span className="text-sm">
+                                {fournisseur.telephone_fournisseur}
+                              </span>
+                            </div>
                             </div>
                           </div>
                         </td>
                         <td className="px-4 py-2 whitespace-nowrap">
-                          <div className="text-xs text-gray-900">
-                            <div className="flex items-center gap-1 mb-1">
-                              <Phone className="w-3 h-3 text-gray-400" />
-                              <span className="text-xs">
-                                {fournisseur.contact_telephone}
-                              </span>
+                          <div className="text-sm text-gray-900">
+                            <div className="text-sm font-medium text-gray-900">
+                              {fournisseur.contact_nom}
                             </div>
                             {fournisseur.contact_email && (
                               <div className="flex items-center gap-1">
-                                <Mail className="w-3 h-3 text-gray-400" />
-                                <span className="text-xs text-gray-600">
+                                <Mail className="w-4 h-4 text-gray-400" />
+                                <span className="text-sm text-gray-600">
                                   {fournisseur.contact_email}
                                 </span>
                               </div>
                             )}
+                            <div className="flex items-center gap-1 mb-1">
+                              <Phone className="w-4 h-4 text-gray-400" />
+                              <span className="text-sm">
+                                {fournisseur.contact_telephone}
+                              </span>
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-2">
-                          <div className="text-xs text-gray-900">
+                          <div className="text-sm text-gray-900">
                             <div className="flex items-start gap-1">
-                              <MapPin className="w-3 h-3 text-gray-400 mt-0.5" />
-                              <div>
-                                <div className="text-xs">
-                                  {fournisseur.adresse}
-                                </div>
-                                <div className="text-xs text-gray-600">
-                                  {fournisseur.ville}, {fournisseur.pays}
-                                </div>
+                              <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
+                              <div className="text-sm">
+                                {fournisseur.adresse}
                               </div>
                             </div>
                           </div>
                         </td>
                         <td className="px-4 py-2 whitespace-nowrap text-center">
-                          <div className="text-xs text-gray-900">
+                          <div className="text-sm text-gray-900">
                             {fournisseur.conditions_paiement || "-"}
                           </div>
                         </td>
                         <td className="px-4 py-2 whitespace-nowrap text-center">
-                          <div className="text-xs text-gray-900">
+                          <div className="text-sm text-gray-900">
                             {fournisseur.delai_livraison || "-"}
                           </div>
                         </td>
@@ -615,7 +685,7 @@ function Fournisseurs() {
                               size="sm"
                             />
                           ) : (
-                            <span className="text-xs text-gray-400">
+                            <span className="text-sm text-gray-400">
                               Non évalué
                             </span>
                           )}
@@ -626,7 +696,7 @@ function Fournisseurs() {
                               onClick={() => handleEdit(fournisseur)}
                               className="text-blue-600 hover:text-blue-900"
                             >
-                              <Edit2 className="w-3 h-3" />
+                              <Edit2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() =>
@@ -634,7 +704,7 @@ function Fournisseurs() {
                               }
                               className="text-red-600 hover:text-red-900"
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
@@ -669,8 +739,69 @@ function Fournisseurs() {
                   onChange={(e) =>
                     handleInputChange("nom_fournisseur", e.target.value)
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                    fieldErrors.nom_fournisseur
+                      ? "border-red-500 ring-2 ring-red-200"
+                      : "border-gray-300 focus:ring-gray-900"
+                  }`}
                 />
+                {fieldErrors.nom_fournisseur && (
+                  <p className="mt-1 text-sm text-red-600">
+                    Un fournisseur avec ce nom existe déjà
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Téléphone du fournisseur *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={formData.telephone_fournisseur}
+                    onChange={(e) =>
+                      handleInputChange("telephone_fournisseur", e.target.value)
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                      fieldErrors.telephone_fournisseur
+                        ? "border-red-500 ring-2 ring-red-200"
+                        : "border-gray-300 focus:ring-gray-900"
+                    }`}
+                    placeholder="Ex: +229012345678"
+                  />
+                  {fieldErrors.telephone_fournisseur && (
+                    <p className="mt-1 text-sm text-red-600">
+                      Format requis: +22901xxxxxxxx ou ce numéro existe déjà
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email du fournisseur *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email_fournisseur}
+                    onChange={(e) =>
+                      handleInputChange("email_fournisseur", e.target.value)
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+                      fieldErrors.email_fournisseur
+                        ? "border-red-500 ring-2 ring-red-200"
+                        : "border-gray-300 focus:ring-gray-900"
+                    }`}
+                    placeholder="Ex: fournisseur@gmail.com"
+                  />
+                  {fieldErrors.email_fournisseur && (
+                    <p className="mt-1 text-sm text-red-600">
+                      Format requis: nom@gmail.com/outlook.com/outlook.fr ou cet
+                      email existe déjà
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -700,7 +831,7 @@ function Fournisseurs() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Téléphone *
+                    Téléphone du contact *
                   </label>
                   <input
                     type="tel"
@@ -726,10 +857,11 @@ function Fournisseurs() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                  Email du contact *
                 </label>
                 <input
                   type="email"
+                  required
                   value={formData.contact_email}
                   onChange={(e) =>
                     handleInputChange("contact_email", e.target.value)
@@ -767,36 +899,7 @@ function Fournisseurs() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ville
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.ville}
-                    onChange={(e) =>
-                      setFormData({ ...formData, ville: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Pays
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.pays}
-                    onChange={(e) =>
-                      setFormData({ ...formData, pays: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Conditions de paiement
+                    Conditions de paiement du contact
                   </label>
                   <input
                     type="text"
@@ -813,7 +916,7 @@ function Fournisseurs() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Délai de livraison
+                    Délai de livraison du fournisseur
                   </label>
                   <input
                     type="text"
@@ -832,7 +935,7 @@ function Fournisseurs() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Évaluation
+                  Évaluation du contact
                 </label>
                 <StarRating
                   value={formData.rating}

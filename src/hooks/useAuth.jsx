@@ -376,6 +376,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Fonction pour mettre à jour directement le profil local (pour les mises à jour instantanées)
+  const updateProfileLocal = (updatedProfile) => {
+    console.log("Mise à jour locale du profil:", updatedProfile);
+    setProfile(updatedProfile);
+
+    // Mettre à jour aussi le stockage local pour la persistance
+    const currentSession = loadSessionFromStorage();
+    if (currentSession) {
+      saveSessionToStorage(currentSession.user, updatedProfile, true);
+    }
+  };
+
   // Vérifier les permissions
   const hasPermission = (permission) => {
     return permissions.includes(permission);
@@ -418,6 +430,7 @@ export const AuthProvider = ({ children }) => {
     signOut,
     updatePassword,
     updateProfile,
+    updateProfileLocal,
 
     // Utilitaires
     hasPermission,

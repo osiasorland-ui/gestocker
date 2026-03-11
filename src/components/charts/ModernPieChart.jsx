@@ -6,10 +6,11 @@ const ModernPieChart = ({
   title = "Répartition",
   showLegend = true,
   size = 200,
+  onCategoryClick = null,
 }) => {
   const [hoveredIndex, setHoveredIndex] = useState(null);
 
-  const total = data.reduce((sum, item) => sum + item.value, 0);
+  const total = data.reduce((sum, item) => sum + (item.value || 0), 0);
   const colors = [
     "#3B82F6",
     "#10B981",
@@ -69,7 +70,7 @@ const ModernPieChart = ({
               {(() => {
                 let currentAngle = -90; // Start from top
                 return data.map((item, index) => {
-                  const percentage = (item.value / total) * 100;
+                  const percentage = total > 0 ? (item.value / total) * 100 : 0;
                   const angle = (percentage * 360) / 100;
                   const startAngle = currentAngle;
                   const endAngle = currentAngle + angle;
@@ -88,7 +89,9 @@ const ModernPieChart = ({
                           isHovered ? size * 0.35 : size * 0.4,
                         )}
                         fill={color}
-                        className="transition-all duration-300 cursor-pointer"
+                        className={`transition-all duration-300 cursor-pointer ${
+                          onCategoryClick ? "hover:brightness-110" : ""
+                        }`}
                         style={{
                           filter: isHovered
                             ? "brightness(1.1)"
@@ -98,6 +101,9 @@ const ModernPieChart = ({
                         }}
                         onMouseEnter={() => setHoveredIndex(index)}
                         onMouseLeave={() => setHoveredIndex(null)}
+                        onClick={() =>
+                          onCategoryClick && onCategoryClick(item.name)
+                        }
                       />
                     </g>
                   );
@@ -140,7 +146,10 @@ const ModernPieChart = ({
                   {data[hoveredIndex].value.toLocaleString()}
                 </div>
                 <div className="text-sm opacity-80">
-                  {((data[hoveredIndex].value / total) * 100).toFixed(1)}%
+                  {total > 0
+                    ? ((data[hoveredIndex].value / total) * 100).toFixed(1)
+                    : 0}
+                  %
                 </div>
                 <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 rotate-45 w-4 h-4 bg-base-content border-r border-b border-base-300"></div>
               </div>
@@ -158,15 +167,19 @@ const ModernPieChart = ({
       {showLegend && data.length > 0 && (
         <div className="mt-6 space-y-2">
           {data.map((item, index) => {
-            const percentage = ((item.value / total) * 100).toFixed(1);
+            const percentage =
+              total > 0 ? ((item.value / total) * 100).toFixed(1) : 0;
             const color = item.color || colors[index % colors.length];
 
             return (
               <div
                 key={index}
-                className="flex items-center justify-between p-2 rounded-lg hover:bg-base-200 transition-colors cursor-pointer"
+                className={`flex items-center justify-between p-2 rounded-lg hover:bg-base-200 transition-colors ${
+                  onCategoryClick ? "cursor-pointer" : ""
+                }`}
                 onMouseEnter={() => setHoveredIndex(index)}
                 onMouseLeave={() => setHoveredIndex(null)}
+                onClick={() => onCategoryClick && onCategoryClick(item.name)}
               >
                 <div className="flex items-center gap-3">
                   <div

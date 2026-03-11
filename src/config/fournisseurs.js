@@ -1,10 +1,13 @@
-import { supabase } from "./auth.js";
+import { createAdminClient } from "./auth.js";
+
+// Créer un client admin pour éviter les problèmes d'autorisation
+const supabaseAdmin = createAdminClient();
 
 // Fonctions pour la gestion des fournisseurs
 export const fournisseurs = {
   // Obtenir tous les fournisseurs d'une entreprise
   getAll: async (entrepriseId) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("fournisseurs")
       .select("*")
       .eq("id_entreprise", entrepriseId)
@@ -15,7 +18,7 @@ export const fournisseurs = {
 
   // Obtenir un fournisseur par son ID
   getById: async (fournisseurId) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("fournisseurs")
       .select("*")
       .eq("id_fournisseur", fournisseurId)
@@ -26,7 +29,7 @@ export const fournisseurs = {
 
   // Créer un nouveau fournisseur
   create: async (fournisseurData) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("fournisseurs")
       .insert(fournisseurData)
       .select()
@@ -37,7 +40,7 @@ export const fournisseurs = {
 
   // Mettre à jour un fournisseur
   update: async (fournisseurId, updates) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("fournisseurs")
       .update(updates)
       .eq("id_fournisseur", fournisseurId)
@@ -49,7 +52,7 @@ export const fournisseurs = {
 
   // Supprimer un fournisseur
   delete: async (fournisseurId) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("fournisseurs")
       .delete()
       .eq("id_fournisseur", fournisseurId);
@@ -59,7 +62,7 @@ export const fournisseurs = {
 
   // Rechercher des fournisseurs
   search: async (entrepriseId, searchTerm) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("fournisseurs")
       .select("*")
       .eq("id_entreprise", entrepriseId)
@@ -73,7 +76,7 @@ export const fournisseurs = {
 
   // Obtenir les fournisseurs avec leurs commandes
   getWithOrders: async (entrepriseId) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("fournisseurs")
       .select(
         `
@@ -97,7 +100,7 @@ export const fournisseurs = {
   checkPhoneExists: async (entrepriseId, telephone, excludeId = null) => {
     if (!telephone) return { exists: false, error: null };
 
-    let query = supabase
+    let query = supabaseAdmin
       .from("fournisseurs")
       .select("id_fournisseur")
       .eq("id_entreprise", entrepriseId)
@@ -117,7 +120,7 @@ export const fournisseurs = {
 
   // Obtenir les statistiques des fournisseurs
   getStats: async (entrepriseId) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("fournisseurs")
       .select("id_fournisseur")
       .eq("id_entreprise", entrepriseId);

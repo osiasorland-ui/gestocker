@@ -227,6 +227,10 @@ function Entrepots() {
         { id: "550e8400-e29b-41d4-a716-446655440003", libelle: "Employé" },
         { id: "5a0fa61f-9db1-4caa-a030-c1f6c5c99ee3", libelle: "Admin" },
         { id: "a033e29c-94f6-4eb3-9243-a9424ec20357", libelle: "Super User" },
+        {
+          id: "ad7b07cb-2ba3-4ba1-a8d6-f053c6b46b46",
+          libelle: "Directeur commercial",
+        },
       ];
 
       const newRole = ROLES.find((r) => r.id === newRoleId);
@@ -473,6 +477,10 @@ function Entrepots() {
         { id: "550e8400-e29b-41d4-a716-446655440003", libelle: "Employé" },
         { id: "5a0fa61f-9db1-4caa-a030-c1f6c5c99ee3", libelle: "Admin" },
         { id: "a033e29c-94f6-4eb3-9243-a9424ec20357", libelle: "Super User" },
+        {
+          id: "ad7b07cb-2ba3-4ba1-a8d6-f053c6b46b46",
+          libelle: "Directeur commercial",
+        },
       ];
 
       const oldRole = ROLES.find((r) => r.id === oldRoleId);
