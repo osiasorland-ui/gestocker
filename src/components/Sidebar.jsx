@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { supabase } from "../config/supabase.js";
+import { supabase } from "../config/auth.js";
 import { useAuth } from "../hooks/useAuthHook.js";
 import {
   Building2,
@@ -25,7 +25,7 @@ const Sidebar = ({ isOpen, profile, onLogout, onProfileUpdate }) => {
   const [expandedSections, setExpandedSections] = useState({});
   const inputRef = useRef();
 
-  // Initialize currentLogoSrc with the logo from profile to avoid flickering
+  // Initialize currentLogoSrc with logo from profile to avoid flickering
   const getInitialLogoSrc = () => {
     const logoPath = profile?.entreprises?.logo_path;
     if (!logoPath) return null;
@@ -46,6 +46,12 @@ const Sidebar = ({ isOpen, profile, onLogout, onProfileUpdate }) => {
     if (!profile) return false;
     const userRoleId = profile.id_role || profile.role_id;
     return userRoleId === ADMIN_ROLE_ID || userRoleId === SUPER_USER_ROLE_ID;
+  };
+
+  // Vérifier si l'utilisateur peut modifier le logo (désactivé pour tout le monde)
+  const canModifyLogo = () => {
+    // Personne ne peut modifier le logo après l'inscription
+    return false;
   };
 
   // Menu principal avec sous-menus
@@ -236,60 +242,18 @@ const Sidebar = ({ isOpen, profile, onLogout, onProfileUpdate }) => {
     });
   };
 
-  // Handle logo click to open file selector
+  // Handle logo click to open file selector (désactivé)
   const handleLogoClick = () => {
-    inputRef.current.click();
+    // Logo non modifiable pour tout le monde
+    console.log("Tentative de modification de logo non autorisée");
+    return;
   };
 
-  // Handle file selection and upload
+  // Handle file selection and upload (désactivé)
   const handleFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      try {
-        const base64 = await convertToBase64(file);
-        console.log("Base64 length:", base64.length);
-        console.log("Base64 preview:", base64);
-
-        // Update database
-        const { error } = await supabase
-          .from("entreprises")
-          .update({ logo_path: base64 })
-          .eq("id_entreprise", profile.entreprises.id_entreprise);
-
-        if (error) {
-          console.error("Error updating logo:", error);
-          return;
-        }
-
-        console.log("Logo updated successfully in database");
-
-        // Update local state immediately for instant feedback
-        setCurrentLogoSrc(base64);
-
-        // Update the profile in context immediately using updateProfileLocal
-        if (profile && profile.entreprises) {
-          const updatedProfile = {
-            ...profile,
-            entreprises: {
-              ...profile.entreprises,
-              logo_path: base64,
-            },
-          };
-
-          // Use the new local update function for instant update
-          updateProfileLocal(updatedProfile);
-
-          // Also call the parent's update function if available (for compatibility)
-          if (onProfileUpdate && typeof onProfileUpdate === "function") {
-            onProfileUpdate(updatedProfile);
-          }
-        }
-
-        console.log("Logo updated successfully and displayed immediately");
-      } catch (error) {
-        console.error("Error converting file:", error);
-      }
-    }
+    // Logo non modifiable pour tout le monde
+    console.log("Tentative de modification de logo non autorisée");
+    return;
   };
 
   // Set initial logo src
@@ -315,14 +279,14 @@ const Sidebar = ({ isOpen, profile, onLogout, onProfileUpdate }) => {
       {/* Header avec logo et infos entreprise */}
       <div className="flex flex-col items-center text-center mb-2 pb-4 border-b border-gray-200">
         <div
-          className={`relative mb-3 ${canManageUsers() ? "cursor-pointer" : ""}`}
-          onClick={canManageUsers() ? handleLogoClick : undefined}
+          className={`relative mb-3 ${canModifyLogo() ? "cursor-pointer" : ""}`}
+          onClick={canModifyLogo() ? handleLogoClick : undefined}
         >
           {currentLogoSrc ? (
             <img
               src={currentLogoSrc}
               alt="Logo entreprise"
-              className={`p-2 w-20 h-20 border border-gray-300 rounded-xl ${canManageUsers() ? "hover:border-blue-500" : ""}`}
+              className={`p-2 w-20 h-20 border border-gray-300 rounded-xl ${canModifyLogo() ? "hover:border-blue-500" : ""}`}
               onError={(e) => {
                 e.target.style.display = "none";
                 e.target.nextElementSibling.style.display = "flex";
@@ -335,7 +299,7 @@ const Sidebar = ({ isOpen, profile, onLogout, onProfileUpdate }) => {
           >
             <Building2 className="w-6 h-6 text-white" />
           </div>
-          {canManageUsers() && (
+          {canModifyLogo() && (
             <div className="absolute bottom-0 right-0 bg-blue-500 text-white rounded-full p-1 opacity-0 hover:opacity-100 transition-opacity">
               <svg
                 className="w-3 h-3"
@@ -444,10 +408,7 @@ const Sidebar = ({ isOpen, profile, onLogout, onProfileUpdate }) => {
         {/* Infos utilisateur */}
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
-            Connecté en tant que{" "}
-            {profile?.prenom && profile?.nom
-              ? `${profile.prenom} ${profile.nom}`
-              : profile?.nom || "Utilisateur"}
+            2025 - {new Date().getFullYear()} &copy; GESTOCKER APP
           </p>
         </div>
       </div>

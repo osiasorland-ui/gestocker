@@ -124,7 +124,7 @@ const Factures = () => {
   };
 
   return (
-    <div className="space-y-6 mx-auto p-10">
+    <div className="space-y-6 mx-auto p-5">
       {/* En-tête */}
       <div className="flex justify-between items-center">
         <div>

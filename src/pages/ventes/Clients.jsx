@@ -24,6 +24,7 @@ import {
   TrendingUp,
   Users,
   AlertCircle,
+  X,
 } from "lucide-react";
 
 // Import des composants UI
@@ -48,10 +49,14 @@ const Clients = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("tous");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showBulkAddModal, setShowBulkAddModal] = useState(false);
+  const [showTypeSelectionModal, setShowTypeSelectionModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   const [editingClient, setEditingClient] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [bulkClients, setBulkClients] = useState("");
+  const [bulkClientType, setBulkClientType] = useState("particulier");
   const { profile } = useAuth();
   const { showSuccess, showError } = useNotification();
 
@@ -268,6 +273,17 @@ const Clients = () => {
     setShowAddModal(true);
   };
 
+  const handleBulkAddClient = () => {
+    setShowTypeSelectionModal(true);
+  };
+
+  const handleTypeSelection = (type) => {
+    setBulkClientType(type);
+    setBulkClients("");
+    setShowTypeSelectionModal(false);
+    setShowBulkAddModal(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -452,21 +468,137 @@ const Clients = () => {
     }
   };
 
+  // Traiter l'ajout en masse de clients
+  const handleBulkAddClients = async () => {
+    if (!profile?.entreprises?.id_entreprise) {
+      showError("Utilisateur non connecté ou entreprise non trouvée");
+      return;
+    }
+
+    if (!bulkClients.trim()) {
+      showError("Veuillez entrer au moins un client");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const lines = bulkClients
+        .trim()
+        .split("\n")
+        .filter((line) => line.trim());
+
+      const clientsToInsert = [];
+
+      for (const line of lines) {
+        // Parser la ligne selon le type de client
+        let fields, nom, prenom, telephone, email;
+
+        if (bulkClientType === "particulier") {
+          // Format particulier: nom,prenom,telephone,email
+          fields = line.split(",").map(field => field.trim());
+          
+          if (fields.length < 4) {
+            showError(`Ligne invalide: ${line}. Format requis: nom,prenom,telephone,email`);
+            return;
+          }
+
+          [nom, prenom, telephone, email] = fields;
+
+          // Validation basique pour particulier
+          if (!nom || !prenom || !telephone || !email) {
+            showError(`Ligne invalide: ${line}. Tous les champs sont obligatoires pour un particulier`);
+            return;
+          }
+        } else {
+          // Format entreprise: nom,telephone,email
+          fields = line.split(",").map(field => field.trim());
+          
+          if (fields.length < 3) {
+            showError(`Ligne invalide: ${line}. Format requis: nom,telephone,email`);
+            return;
+          }
+
+          [nom, telephone, email] = fields;
+          prenom = null; // Pas de prénom pour une entreprise
+
+          // Validation basique pour entreprise
+          if (!nom || !telephone || !email) {
+            showError(`Ligne invalide: ${line}. Tous les champs sont obligatoires pour une entreprise`);
+            return;
+          }
+        }
+
+        // Validation format téléphone (adapté pour le Bénin)
+        const phoneRegex = /^\+22901\d{8}$/;
+        if (!phoneRegex.test(telephone)) {
+          showError(`Format de téléphone invalide: ${telephone}. Format attendu: +22901XXXXXXXX`);
+          return;
+        }
+
+        // Validation email
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          showError(`Format d'email invalide: ${email}`);
+          return;
+        }
+
+        clientsToInsert.push({
+          id_entreprise: profile.entreprises.id_entreprise,
+          nom: nom.trim(),
+          prenom: prenom?.trim() || null,
+          telephone: telephone.trim(),
+          email: email.trim(),
+        });
+      }
+
+      // Insérer tous les clients
+      const { error } = await clients.bulkInsert(clientsToInsert);
+
+      if (error) {
+        console.error("Erreur lors de l'ajout en masse:", error);
+        showError(`Erreur lors de l'ajout: ${error.message}`);
+      } else {
+        showSuccess(`${clientsToInsert.length} client(s) ajouté(s) avec succès`);
+        // Fermer la modal et réinitialiser
+        setShowBulkAddModal(false);
+        setBulkClients("");
+        setBulkClientType("particulier");
+        setError("");
+        loadClients(); // Rafraîchir la liste
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'ajout en masse:", error);
+      showError(`Erreur lors de l'ajout: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="space-y-6 mx-auto p-10">
+    <div className="space-y-6 mx-auto p-5">
       {/* En-tête */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
           <p className="text-gray-600 mt-1">Gestion des clients et prospects</p>
         </div>
-        <button
-          onClick={handleAddClient}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nouveau client
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleAddClient}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nouveau client
+          </button>
+          <button
+            onClick={handleBulkAddClient}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Ajout en masse
+          </button>
+        </div>
       </div>
 
       {/* Statistiques */}
@@ -916,6 +1048,198 @@ const Clients = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Sélection du type de client */}
+      {showTypeSelectionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                Sélectionner le type de clients
+              </h2>
+              <button
+                onClick={() => setShowTypeSelectionModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Choisissez le type de clients que vous souhaitez ajouter en masse :
+              </p>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleTypeSelection("particulier")}
+                  className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Users className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Particuliers</h3>
+                      <p className="text-sm text-gray-600">Format: nom,prenom,telephone,email</p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleTypeSelection("entreprise")}
+                  className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                      <Building className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Entreprises</h3>
+                      <p className="text-sm text-gray-600">Format: nom,telephone,email</p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <div className="pt-4 border-t">
+                <button
+                  onClick={() => setShowTypeSelectionModal(false)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ajout en masse de clients */}
+      {showBulkAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                Ajout en masse de clients
+              </h2>
+              <button
+                onClick={() => {
+                  setShowBulkAddModal(false);
+                  setBulkClients("");
+                  setBulkClientType("particulier");
+                  setError("");
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Type de client sélectionné */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Type de clients:</span>
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                    {bulkClientType === "particulier" ? "Particuliers" : "Entreprises"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Instructions */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-medium text-blue-900 mb-2">
+                  Instructions de formatage
+                </h3>
+                <p className="text-sm text-blue-800">
+                  Entrez chaque client sur une ligne séparée au format :
+                </p>
+                {bulkClientType === "particulier" ? (
+                  <>
+                    <code className="block mt-2 text-xs bg-blue-100 p-2 rounded">
+                      nom,prenom,telephone,email
+                    </code>
+                    <p className="text-xs text-blue-600 mt-2">
+                      Exemple : "Dupont,Jean,+2290112345678,jean@email.com"
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <code className="block mt-2 text-xs bg-blue-100 p-2 rounded">
+                      nom,telephone,email
+                    </code>
+                    <p className="text-xs text-blue-600 mt-2">
+                      Exemple : "Entreprise ABC,+2290112345678,contact@entreprise.com"
+                    </p>
+                  </>
+                )}
+                <p className="text-xs text-red-600 mt-2 font-medium">
+                  ⚠️ Tous les champs sont obligatoires
+                </p>
+              </div>
+
+              {/* Zone de texte pour la liste */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Liste des clients *
+                </label>
+                <textarea
+                  value={bulkClients}
+                  onChange={(e) => setBulkClients(e.target.value)}
+                  placeholder="Entrez la liste des clients au format CSV..."
+                  rows={10}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  {
+                    bulkClients.split("\n").filter((line) => line.trim())
+                      .length
+                  }{" "}
+                  client(s) détecté(s)
+                </p>
+              </div>
+
+              {/* Boutons d'action */}
+              <div className="flex justify-end space-x-3 pt-4 border-t">
+                <button
+                  onClick={() => {
+                    setShowBulkAddModal(false);
+                    setBulkClients("");
+                    setBulkClientType("particulier");
+                    setError("");
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleBulkAddClients}
+                  disabled={loading || !bulkClients.trim() || !bulkClientType}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Ajout en cours...
+                    </>
+                  ) : (
+                    <>
+                      <Users className="w-4 h-4 mr-2" />
+                      Ajouter{" "}
+                      {
+                        bulkClients.split("\n").filter((line) => line.trim())
+                          .length
+                      }{" "}
+                      client(s)
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

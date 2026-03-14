@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { supabase } from "../config/auth.js";
 
 // Utilitaire pour la sauvegarde automatique des paramètres
 export const backupService = {

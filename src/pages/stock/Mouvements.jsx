@@ -12,16 +12,21 @@ import {
   CheckCircle,
   TrendingUp,
   TrendingDown,
+  ArrowRightLeft,
 } from "lucide-react";
 import {
-  movements,
+  mouvementsUnifie,
+  entreesStock,
+  sortiesStock,
+  ajustementsStock,
   products as productsService,
   warehouses as warehousesService,
   stocks,
   clients,
   fournisseurs,
   categories as categoriesService,
-} from "../../config/supabase";
+  transfers,
+} from "../../config/auth";
 import { useAuth } from "../../hooks/useAuthHook.js";
 import { useNotification } from "../../hooks/useNotification";
 import Notification from "../../components/Notification";
@@ -43,10 +48,20 @@ import Loader, {
   CardLoader,
 } from "../../components/ui/Loader";
 
+// Import des composants d'onglets
+import EntreeStock from './components/EntreeStock';
+import SortieStock from './components/SortieStock';
+import AjustementStock from './components/AjustementStock';
+import TransfertStock from './components/TransfertStock';
+
 function Mouvements() {
   const { user } = useAuth();
   const { showSuccess, showError } = useNotification();
   const [mouvements, setMouvements] = useState([]);
+  const [entrees, setEntrees] = useState([]);
+  const [sorties, setSorties] = useState([]);
+  const [ajustements, setAjustements] = useState([]);
+  const [transferts, setTransferts] = useState([]);
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -55,16 +70,38 @@ function Mouvements() {
     totalEntrees: 0,
     totalSorties: 0,
     totalAjustements: 0,
+    totalTransferts: 0,
     nombreMouvements: 0,
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [activeTab, setActiveTab] = useState("ENTREE"); // État pour les onglets
   const [filterType, setFilterType] = useState("tous");
   const [dateFilter, setDateFilter] = useState("");
+
+  // Fonction de validation pour les champs numériques
+  const validateNumberInput = (value) => {
+    // Supprimer tous les caractères non numériques sauf le point décimal
+    let numericValue = value.replace(/[^0-9.]/g, '');
+    
+    // S'assurer qu'il n'y a qu'un seul point décimal
+    const parts = numericValue.split('.');
+    if (parts.length > 2) {
+      numericValue = parts[0] + '.' + parts.slice(1).join('');
+    }
+    
+    // S'assurer que la valeur est positive
+    if (numericValue.startsWith('-')) {
+      numericValue = numericValue.substring(1);
+    }
+    
+    return numericValue;
+  };
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [warning, setWarning] = useState("");
   const [formData, setFormData] = useState({
     id_produit: "",
     id_entrepot: "",
@@ -73,6 +110,7 @@ function Mouvements() {
     motif: "",
     fournisseur_id: "",
     client_id: "",
+    id_entrepot_dest: "", // Pour les transferts
   });
 
   // États pour la gestion du choix nouveau/ancien produit
@@ -107,12 +145,12 @@ function Mouvements() {
         statsData,
         categoriesData,
       ] = await Promise.all([
-        movements.getAll(user.id_entreprise),
+        mouvementsUnifie.getAll(user.id_entreprise),
         productsService.getAll(user.id_entreprise),
         warehousesService.getAll(user.id_entreprise),
         fournisseurs.getAll(user.id_entreprise),
         clients.getAll(user.id_entreprise),
-        movements.getStats(user.id_entreprise, "month"),
+        mouvementsUnifie.getStats(user.id_entreprise, "month"),
         categoriesService.getAll(user.id_entreprise),
       ]);
 
@@ -125,6 +163,12 @@ function Mouvements() {
       if (categoriesData.error) throw categoriesData.error;
 
       setMouvements(mouvementsData.data || []);
+      // Séparer les mouvements par type
+      const allMovements = mouvementsData.data || [];
+      setEntrees(allMovements.filter(m => m.type_mvt === 'ENTREE'));
+      setSorties(allMovements.filter(m => m.type_mvt === 'SORTIE'));
+      setAjustements(allMovements.filter(m => m.type_mvt === 'AJUSTEMENT'));
+      setTransferts(allMovements.filter(m => m.type_mvt === 'TRANSFERT'));
       setProducts(productsData.data || []);
       setWarehouses(warehousesData.data || []);
       setSuppliers(suppliersData.data || []);
@@ -135,6 +179,7 @@ function Mouvements() {
           totalEntrees: 0,
           totalSorties: 0,
           totalAjustements: 0,
+          totalTransferts: 0,
           nombreMouvements: 0,
         },
       );
@@ -150,8 +195,26 @@ function Mouvements() {
     loadData();
   }, [loadData]);
 
+  // Filtrer les produits par entrepôt sélectionné avec vérification de sécurité
+  const filteredProducts = useMemo(() => {
+    if (!formData.id_entrepot) {
+      return []; // Si aucun entrepôt sélectionné, retourner une liste vide
+    }
+    return products.filter(product => {
+      // Vérifier que le produit a bien un entrepôt valide
+      if (!product.id_entrepot) return false;
+      return product.id_entrepot === formData.id_entrepot;
+    });
+  }, [products, formData.id_entrepot]);
+
+  // Filtrer les mouvements par type et par onglet actif
   const filteredMouvements = useMemo(() => {
-    return mouvements.filter((mouvement) => {
+    const relevantMovements = activeTab === 'ENTREE' ? entrees :
+                           activeTab === 'SORTIE' ? sorties :
+                           activeTab === 'AJUSTEMENT' ? ajustements :
+                           transferts;
+    
+    return relevantMovements.filter((mouvement) => {
       const matchesSearch =
         mouvement.produits?.designation
           ?.toLowerCase()
@@ -160,16 +223,22 @@ function Mouvements() {
         mouvement.produits?.sku
           ?.toLowerCase()
           .includes(searchTerm.toLowerCase());
-      const matchesType =
-        filterType === "tous" ||
-        mouvement.type_mvt === filterType.toUpperCase();
+      
+      const dateField = mouvement.date_entree || mouvement.date_sortie || 
+                       mouvement.date_ajustement || mouvement.date_transfert;
       const matchesDate =
         !dateFilter ||
-        new Date(mouvement.date_mvt).toISOString().split("T")[0] === dateFilter;
+        new Date(dateField).toISOString().split("T")[0] === dateFilter;
 
-      return matchesSearch && matchesType && matchesDate;
+      return matchesSearch && matchesDate;
     });
-  }, [mouvements, searchTerm, filterType, dateFilter]);
+  }, [entrees, sorties, ajustements, transferts, searchTerm, activeTab, dateFilter]);
+
+  // Gérer le changement d'onglet
+  const handleTabChange = (tabType) => {
+    setActiveTab(tabType);
+    setFormData(prev => ({ ...prev, type_mvt: tabType }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -183,71 +252,95 @@ function Mouvements() {
         throw new Error("Informations d'entreprise non disponibles");
       }
 
-      // Validation des champs
-      if (
-        !formData.id_produit ||
-        !formData.id_entrepot ||
-        !formData.quantite ||
-        !formData.motif
-      ) {
-        throw new Error("Veuillez remplir tous les champs obligatoires");
+      // Utiliser le type de mouvement de l'onglet actif
+      const movementType = activeTab;
+      let result;
+
+      // Validation spécifique selon le type de mouvement
+      if (movementType === "TRANSFERT" && !formData.id_entrepot_dest) {
+        throw new Error("L'entrepôt destination est requis pour les transferts");
       }
 
-      const quantity = parseInt(formData.quantite);
-      if (isNaN(quantity) || quantity <= 0) {
-        throw new Error("La quantité doit être un nombre positif");
+      if ((movementType === "SORTIE" || movementType === "ENTREE") && !formData.id_produit) {
+        throw new Error("Le produit est requis pour les mouvements");
       }
 
-      // Validation supplémentaire selon le type
-      if (formData.type_mvt === "SORTIE") {
-        const validation = await movements.validateMovement(
-          formData.id_produit,
-          formData.id_entrepot,
-          quantity,
-          formData.type_mvt,
-        );
+      // Préparer les données selon le type de mouvement
+      switch (movementType) {
+        case "ENTREE":
+          const entreeData = {
+            id_produit: formData.id_produit,
+            id_entrepot: formData.id_entrepot,
+            quantite: parseInt(formData.quantite),
+            motif: formData.motif,
+            id_entreprise: user.id_entreprise,
+            id_user: user.id_user,
+            ...(formData.fournisseur_id && { id_fournisseur: formData.fournisseur_id }),
+            ...(formData.prix_unitaire && { prix_unitaire: parseFloat(formData.prix_unitaire) })
+          };
+          result = await entreesStock.create(entreeData);
+          break;
 
-        if (!validation.valid) {
-          throw new Error(validation.message);
-        }
+        case "SORTIE":
+          const sortieData = {
+            id_produit: formData.id_produit,
+            id_entrepot: formData.id_entrepot,
+            quantite: parseInt(formData.quantite),
+            motif: formData.motif,
+            id_entreprise: user.id_entreprise,
+            id_user: user.id_user,
+            ...(formData.client_id && { id_client: formData.client_id }),
+            ...(formData.prix_unitaire && { prix_unitaire: parseFloat(formData.prix_unitaire) })
+          };
+          result = await sortiesStock.create(sortieData);
+          break;
+
+        case "AJUSTEMENT":
+          const quantite = parseInt(formData.quantite);
+          const ajustementData = {
+            id_produit: formData.id_produit,
+            id_entrepot: formData.id_entrepot,
+            type_ajustement: quantite > 0 ? "AUGMENTATION" : "DIMINUTION",
+            quantite: quantite,
+            quantite_absolue: Math.abs(quantite),
+            motif: formData.motif,
+            id_entreprise: user.id_entreprise,
+            id_user: user.id_user
+          };
+          result = await ajustementsStock.create(ajustementData);
+          break;
+
+        case "TRANSFERT":
+          const transfertData = {
+            id_produit: formData.id_produit,
+            id_entrepot_source: formData.id_entrepot,
+            id_entrepot_dest: formData.id_entrepot_dest,
+            quantite: parseInt(formData.quantite),
+            id_entreprise: user.id_entreprise,
+            id_user: user.id_user,
+            date_transfert: new Date().toISOString()
+          };
+          result = await transfers.create(transfertData);
+          break;
+
+        default:
+          throw new Error("Type de mouvement non valide");
       }
 
-      // Vérifier les seuils d'alerte pour les sorties
-      if (formData.type_mvt === "SORTIE") {
-        const stockCheck = await stocks.getByProductAndWarehouse(
-          formData.id_produit,
-          formData.id_entrepot,
-        );
-
-        if (
-          stockCheck.data &&
-          stockCheck.data.quantite_disponible - quantity <=
-            stockCheck.data.seuil_alerte
-        ) {
-          console.warn(
-            `⚠️ Alerte de seuil de stock pour le produit ${stockCheck.data.produits?.designation}`,
-          );
-        }
+      if (result.error) {
+        throw new Error(result.error.message || "Erreur lors de la création du mouvement");
       }
 
-      // Créer le mouvement
-      const movementData = {
-        ...formData,
-        quantite: quantity,
-        id_user: user.id_user,
-        id_entreprise: user.id_entreprise,
-        ref: await movements.generateReference(user.id_entreprise),
-      };
-
-      const { error } = await movements.create(movementData);
-
-      if (error) throw error;
-
-      showSuccess("Mouvement de stock enregistré avec succès");
-      await loadData(); // Recharger les données
+      showSuccess(`${movementType === "ENTREE" ? "Entrée" : movementType === "SORTIE" ? "Sortie" : movementType === "AJUSTEMENT" ? "Ajustement" : "Transfert"} créé avec succès`);
+      
+      // Réinitialiser le formulaire
       resetForm();
+      setShowAddModal(false);
+
+      // Recharger les données
+      loadData();
     } catch (err) {
-      showError(err.message || "Erreur lors de l'enregistrement du mouvement");
+      setError(err.message || "Erreur lors de l'enregistrement du mouvement");
       console.error("Erreur lors de l'enregistrement du mouvement:", err);
     } finally {
       setSubmitting(false);
@@ -325,11 +418,12 @@ function Mouvements() {
     setFormData({
       id_produit: "",
       id_entrepot: "",
-      type_mvt: "ENTREE",
+      type_mvt: activeTab, // Utiliser l'onglet actif
       quantite: "",
       motif: "",
       fournisseur_id: "",
       client_id: "",
+      id_entrepot_dest: "",
     });
     setProductChoice("existing");
     setReturnToMovementAfterProduct(false);
@@ -343,6 +437,7 @@ function Mouvements() {
     setShowAddModal(false);
     setShowProductModal(false);
     setError("");
+    setWarning("");
   };
 
   const getTypeIcon = (type) => {
@@ -350,6 +445,8 @@ function Mouvements() {
       <ArrowDownLeft className="w-4 h-4 text-green-600" />
     ) : type === "SORTIE" ? (
       <ArrowUpRight className="w-4 h-4 text-red-600" />
+    ) : type === "TRANSFERT" ? (
+      <ArrowRightLeft className="w-4 h-4 text-purple-600" />
     ) : (
       <Package className="w-4 h-4 text-blue-600" />
     );
@@ -360,17 +457,28 @@ function Mouvements() {
       ? "text-green-600 bg-green-50"
       : type === "SORTIE"
         ? "text-red-600 bg-red-50"
-        : "text-blue-600 bg-blue-50";
+        : type === "TRANSFERT"
+          ? "text-purple-600 bg-purple-50"
+          : "text-blue-600 bg-blue-50";
   };
 
   return (
-    <div className="space-y-6 mx-auto p-10">
+    <div className="space-y-6 mx-auto p-5">
       {/* Messages d'alerte */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">  
             <AlertCircle className="w-5 h-5 text-red-600" />
             <span className="text-red-800">{error}</span>
+          </div>
+        </div>
+      )}
+
+      {warning && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">  
+            <AlertCircle className="w-5 h-5 text-yellow-600" />
+            <span className="text-yellow-800">{warning}</span>
           </div>
         </div>
       )}
@@ -385,7 +493,7 @@ function Mouvements() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-5 text-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
             Mouvements de Stock
@@ -394,249 +502,137 @@ function Mouvements() {
             Suivez les entrées et sorties de produits
           </p>
         </div>
-        <div className="flex items-center gap-4">
+      </div>
+
+      {/* Onglets */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex w-full">
           <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+            onClick={() => handleTabChange("ENTREE")}
+            className={`flex-1 py-2 px-1 border-b-4 font-medium text-sm ${
+              activeTab === "ENTREE"
+                ? "border-green-500 text-green-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
           >
-            <Plus className="w-4 h-4" />
-            Nouveau mouvement
+            <div className="flex items-center justify-center gap-2">
+              <ArrowDownLeft className="w-4 h-4" />
+              Entrée de stock
+            </div>
           </button>
-        </div>
-      </div>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-green-100 rounded-full">
-              <TrendingUp className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">
-                Entrées ce mois
-              </p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.totalEntrees}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-red-100 rounded-full">
-              <TrendingDown className="h-6 w-6 text-red-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">
-                Sorties ce mois
-              </p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.totalSorties}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-blue-100 rounded-full">
-              <Package className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Ajustements</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.totalAjustements}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-purple-100 rounded-full">
-              <Calendar className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">
-                Total mouvements
-              </p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.nombreMouvements}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Rechercher..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm"
-            />
-          </div>
-
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm"
+          <button
+            onClick={() => handleTabChange("SORTIE")}
+            className={`flex-1 py-2 px-1 border-b-4 font-medium text-sm ${
+              activeTab === "SORTIE"
+                ? "border-red-500 text-red-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
           >
-            <option value="tous">Tous les types</option>
-            <option value="entree">Entrées</option>
-            <option value="sortie">Sorties</option>
-          </select>
+            <div className="flex items-center justify-center gap-2">
+              <ArrowUpRight className="w-4 h-4" />
+              Sortie de stock
+            </div>
+          </button>
 
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent text-sm"
+          <button
+            onClick={() => handleTabChange("AJUSTEMENT")}
+            className={`flex-1 py-2 px-1 border-b-4 font-medium text-sm ${
+              activeTab === "AJUSTEMENT"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Package className="w-4 h-4" />
+              Ajustement de stock
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleTabChange("TRANSFERT")}
+            className={`flex-1 py-2 px-1 border-b-4 font-medium text-sm ${
+              activeTab === "TRANSFERT"
+                ? "border-purple-500 text-purple-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <ArrowRightLeft className="w-4 h-4" />
+              Transfert de stock
+            </div>
+          </button>
+        </nav>
+      </div>
+
+      {/* Contenu des onglets */}
+        {activeTab === "ENTREE" && (
+          <EntreeStock
+            movements={entrees}
+            loading={loading}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            dateFilter={dateFilter}
+            setDateFilter={setDateFilter}
+            showAddModal={showAddModal}
+            setShowAddModal={setShowAddModal}
+            stats={stats}
+            filteredMouvements={filteredMouvements}
+            getTypeIcon={getTypeIcon}
+            getTypeColor={getTypeColor}
           />
+        )}
 
-          <button className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm">
-            <Filter className="w-4 h-4" />
-            Plus de filtres
-          </button>
-        </div>
-      </div>
+        {activeTab === "SORTIE" && (
+          <SortieStock
+            movements={sorties}
+            loading={loading}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            dateFilter={dateFilter}
+            setDateFilter={setDateFilter}
+            showAddModal={showAddModal}
+            setShowAddModal={setShowAddModal}
+            stats={stats}
+            filteredMouvements={filteredMouvements}
+            getTypeIcon={getTypeIcon}
+            getTypeColor={getTypeColor}
+          />
+        )}
 
-      {/* Mouvements Table */}
-      {loading ? (
-        <Card>
-          <CardContent>
-            <TableLoader text="Chargement des mouvements..." />
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    REF
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Produit
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Quantité
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Stock
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Motif
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Référence
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Utilisateur
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredMouvements.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan="9"
-                      className="px-6 py-12 text-center text-gray-500"
-                    >
-                      <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                      <p>Aucun mouvement trouvé</p>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredMouvements.map((mouvement) => (
-                    <tr key={mouvement.id_mvt} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        #{mouvement.ref}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm">
-                          <div className="text-gray-900">
-                            {new Date(mouvement.date_mvt).toLocaleDateString(
-                              "fr-FR",
-                            )}
-                          </div>
-                          <div className="text-gray-500">
-                            {new Date(mouvement.date_mvt).toLocaleTimeString(
-                              "fr-FR",
-                              { hour: "2-digit", minute: "2-digit" },
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(mouvement.type_mvt)}`}
-                        >
-                          {getTypeIcon(mouvement.type_mvt)}
-                          {mouvement.type_mvt === "ENTREE"
-                            ? "Entrée"
-                            : mouvement.type_mvt === "SORTIE"
-                              ? "Sortie"
-                              : "Ajustement"}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {mouvement.produits?.designation || "Produit inconnu"}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {mouvement.produits?.sku || "-"}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div
-                          className={`text-sm font-medium ${
-                            mouvement.type_mvt === "ENTREE"
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {mouvement.type_mvt === "ENTREE" ? "+" : "-"}
-                          {mouvement.quantite}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {mouvement.stock}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {mouvement.motif || "-"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {mouvement.id_mvt?.slice(0, 8) || "-"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-gray-400" />
-                          ID: {mouvement.id_mvt?.slice(0, 8) || "-"}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+        {activeTab === "AJUSTEMENT" && (
+          <AjustementStock
+            movements={ajustements}
+            loading={loading}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            dateFilter={dateFilter}
+            setDateFilter={setDateFilter}
+            showAddModal={showAddModal}
+            setShowAddModal={setShowAddModal}
+            stats={stats}
+            filteredMouvements={filteredMouvements}
+            getTypeIcon={getTypeIcon}
+            getTypeColor={getTypeColor}
+          />
+        )}
+
+        {activeTab === "TRANSFERT" && (
+          <TransfertStock
+            movements={transferts}
+            loading={loading}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            dateFilter={dateFilter}
+            setDateFilter={setDateFilter}
+            showAddModal={showAddModal}
+            setShowAddModal={setShowAddModal}
+            stats={stats}
+            filteredMouvements={filteredMouvements}
+            getTypeIcon={getTypeIcon}
+            getTypeColor={getTypeColor}
+          />
+        )}
 
       {/* Add Movement Modal */}
       {showAddModal && (
@@ -644,7 +640,10 @@ function Mouvements() {
           <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-bold text-gray-900">
-                Nouveau Mouvement de Stock
+                {activeTab === "ENTREE" && "Nouvelle Entrée de Stock"}
+                {activeTab === "SORTIE" && "Nouvelle Sortie de Stock"}
+                {activeTab === "AJUSTEMENT" && "Nouvel Ajustement de Stock"}
+                {activeTab === "TRANSFERT" && "Nouveau Transfert de Stock"}
               </h2>
             </div>
 
@@ -654,32 +653,42 @@ function Mouvements() {
                 onSubmit={handleSubmit}
                 className="space-y-4"
               >
-                {/* Type de mouvement */}
-                <div className="mb-4">
-                  <div className="mb-4   6 ">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Type de mouvement *
-                    </label>
-                    <select
-                      required
-                      value={formData.type_mvt}
-                      onChange={(e) =>
-                        setFormData({ ...formData, type_mvt: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                    >
-                      <option value="">Sélectionner le type</option>
-                      <option value="ENTREE">Entrée de stock</option>
-                      <option value="SORTIE">Sortie de stock</option>
-                      <option value="AJUSTEMENT">Ajustement de stock</option>
-                    </select>
-                  </div>
+                {activeTab === "ENTREE" && (
+                  <>
+                    {/* Entrepôt */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Entrepôt *
+                      </label>
+                      <select
+                        required
+                        value={formData.id_entrepot}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            id_entrepot: e.target.value,
+                            id_produit: "", // Réinitialiser le produit quand on change d'entrepôt
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      >
+                        <option value="">Sélectionner un entrepôt</option>
+                        {warehouses.map((warehouse) => (
+                          <option
+                            key={warehouse.id_entrepot}
+                            value={warehouse.id_entrepot}
+                          >
+                            {warehouse.nom_entrepot}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Produit *
-                    </label>
-                    {formData.type_mvt === "ENTREE" ? (
+                    {/* Produit */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Produit *
+                      </label>
                       <div className="space-y-1">
                         <div className="flex gap-2">
                           <select
@@ -691,10 +700,13 @@ function Mouvements() {
                                 id_produit: e.target.value,
                               })
                             }
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+                            disabled={!formData.id_entrepot}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                           >
-                            <option value="">Sélectionner un produit</option>
-                            {products.map((product) => (
+                            <option value="">
+                              {!formData.id_entrepot ? "Sélectionnez d'abord un entrepôt" : "Sélectionner un produit"}
+                            </option>
+                            {filteredProducts.map((product) => (
                               <option
                                 key={product.id_produit}
                                 value={product.id_produit}
@@ -706,16 +718,128 @@ function Mouvements() {
                           <button
                             type="button"
                             onClick={handleNewProductChoice}
-                            className="px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-700 whitespace-nowrap"
+                            disabled={!formData.id_entrepot}
+                            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 whitespace-nowrap disabled:bg-gray-400 disabled:cursor-not-allowed"
                           >
                             Nouveau
                           </button>
                         </div>
                         <p className="text-xs text-gray-500">
-                          Ou créez un nouveau produit avec le bouton "Nouveau"
+                          {formData.id_entrepot 
+                            ? `Affichage des produits de l'entrepôt sélectionné (${filteredProducts.length} produit(s))`
+                            : "Sélectionnez d'abord un entrepôt pour voir les produits disponibles"
+                          } ou créez un nouveau produit avec le bouton "Nouveau"
                         </p>
                       </div>
-                    ) : (
+                    </div>
+
+                    {/* Quantité */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Quantité *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        value={formData.quantite}
+                        onChange={(e) => {
+                          const validatedValue = validateNumberInput(e.target.value);
+                          setFormData({
+                            ...formData,
+                            quantite: validatedValue,
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="Quantité à entrer"
+                      />
+                    </div>
+
+                    {/* Fournisseur */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Fournisseur
+                      </label>
+                      <select
+                        value={formData.fournisseur_id}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            fournisseur_id: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      >
+                        <option value="">Sélectionner un fournisseur</option>
+                        {suppliers.map((supplier) => (
+                          <option
+                            key={supplier.id_fournisseur}
+                            value={supplier.id_fournisseur}
+                          >
+                            {supplier.nom_fournisseur}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Motif */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Motif *
+                      </label>
+                      <textarea
+                        required
+                        value={formData.motif}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            motif: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        rows="3"
+                        placeholder="Motif de l'entrée de stock"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {activeTab === "SORTIE" && (
+                  <>
+                    {/* Entrepôt */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Entrepôt *
+                      </label>
+                      <select
+                        required
+                        value={formData.id_entrepot}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            id_entrepot: e.target.value,
+                            id_produit: "", // Réinitialiser le produit quand on change d'entrepôt
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                      >
+                        <option value="">Sélectionner un entrepôt</option>
+                        {warehouses.map((warehouse) => (
+                          <option
+                            key={warehouse.id_entrepot}
+                            value={warehouse.id_entrepot}
+                          >
+                            {warehouse.nom_entrepot}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Produit */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Produit *
+                      </label>
                       <select
                         required
                         value={formData.id_produit}
@@ -725,137 +849,359 @@ function Mouvements() {
                             id_produit: e.target.value,
                           })
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+                        disabled={!formData.id_entrepot}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                       >
-                        <option value="">Sélectionner un produit</option>
-                        {products.map((product) => (
+                        <option value="">
+                          {!formData.id_entrepot ? "Sélectionnez d'abord un entrepôt" : "Sélectionner un produit"}
+                        </option>
+                        {formData.id_entrepot && products.filter(product => product.id_entrepot === formData.id_entrepot).map((product) => (
                           <option
                             key={product.id_produit}
                             value={product.id_produit}
                           >
-                            {product.designation} ({product.sku})
+                            {product.designation} ({product.sku}) - Stock: {product.quantite_disponible || 0}
                           </option>
                         ))}
                       </select>
-                    )}
-                  </div>
-                </div>
+                    </div>
 
-                {/* Quantité et Entrepôt */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Quantité *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      value={formData.quantite}
-                      onChange={(e) =>
-                        setFormData({ ...formData, quantite: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Entrepôt *
-                    </label>
-                    <select
-                      required
-                      value={formData.id_entrepot}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          id_entrepot: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                    >
-                      <option value="">Sélectionner un entrepôt</option>
-                      {warehouses.map((warehouse) => (
-                        <option
-                          key={warehouse.id_entrepot}
-                          value={warehouse.id_entrepot}
-                        >
-                          {warehouse.nom_entrepot}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                    {/* Quantité */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Quantité *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        value={formData.quantite}
+                        onChange={(e) => {
+                          const validatedValue = validateNumberInput(e.target.value);
+                          setFormData({
+                            ...formData,
+                            quantite: validatedValue,
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                        placeholder="Quantité à sortir"
+                      />
+                    </div>
 
-                {/* Motif */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Motif *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.motif}
-                    onChange={(e) =>
-                      setFormData({ ...formData, motif: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                    placeholder="ex: Nouvelle livraison, Vente client..."
-                  />
-                </div>
+                    {/* Client */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Client
+                      </label>
+                      <select
+                        value={formData.client_id}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            client_id: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                      >
+                        <option value="">Sélectionner un client</option>
+                        {customers.map((customer) => (
+                          <option
+                            key={customer.id_client}
+                            value={customer.id_client}
+                          >
+                            {customer.nom} {customer.prenom}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                {/* Fournisseur/Client */}
-                {formData.type_mvt === "ENTREE" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Fournisseur (optionnel)
-                    </label>
-                    <select
-                      value={formData.fournisseur_id}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          fournisseur_id: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                    >
-                      <option value="">Sélectionner un fournisseur</option>
-                      {suppliers.map((supplier) => (
-                        <option
-                          key={supplier.id_fournisseur}
-                          value={supplier.id_fournisseur}
-                        >
-                          {supplier.nom_fournisseur}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                    {/* Motif */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Motif *
+                      </label>
+                      <textarea
+                        required
+                        value={formData.motif}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            motif: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                        rows="3"
+                        placeholder="Motif de la sortie de stock"
+                      />
+                    </div>
+                  </>
                 )}
 
-                {formData.type_mvt === "SORTIE" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Client (optionnel)
-                    </label>
-                    <select
-                      value={formData.client_id}
-                      onChange={(e) =>
-                        setFormData({ ...formData, client_id: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                    >
-                      <option value="">Sélectionner un client</option>
-                      {customers.map((customer) => (
-                        <option
-                          key={customer.id_client}
-                          value={customer.id_client}
-                        >
-                          {customer.nom} {customer.prenom}
+                {activeTab === "AJUSTEMENT" && (
+                  <>
+                    {/* Entrepôt */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Entrepôt *
+                      </label>
+                      <select
+                        required
+                        value={formData.id_entrepot}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            id_entrepot: e.target.value,
+                            id_produit: "", // Réinitialiser le produit quand on change d'entrepôt
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Sélectionner un entrepôt</option>
+                        {warehouses.map((warehouse) => (
+                          <option
+                            key={warehouse.id_entrepot}
+                            value={warehouse.id_entrepot}
+                          >
+                            {warehouse.nom_entrepot}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Produit */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Produit *
+                      </label>
+                      <select
+                        required
+                        value={formData.id_produit}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            id_produit: e.target.value,
+                          })
+                        }
+                        disabled={!formData.id_entrepot}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      >
+                        <option value="">
+                          {!formData.id_entrepot ? "Sélectionnez d'abord un entrepôt" : "Sélectionner un produit"}
                         </option>
-                      ))}
-                    </select>
-                  </div>
+                        {formData.id_entrepot && products.filter(product => product.id_entrepot === formData.id_entrepot).map((product) => (
+                          <option
+                            key={product.id_produit}
+                            value={product.id_produit}
+                          >
+                            {product.designation} ({product.sku}) - Stock: {product.quantite_disponible || 0}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Type d'ajustement */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Type d'ajustement *
+                      </label>
+                      <select
+                        required
+                        value={formData.quantite > 0 ? "PLUS" : "MOINS"}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            quantite: e.target.value === "PLUS" ? "1" : "-1",
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="PLUS">Augmentation (+)</option>
+                        <option value="MOINS">Diminution (-)</option>
+                      </select>
+                    </div>
+
+                    {/* Quantité */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Quantité *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        value={Math.abs(formData.quantite)}
+                        onChange={(e) => {
+                          const validatedValue = validateNumberInput(e.target.value);
+                          setFormData({
+                            ...formData,
+                            quantite: validatedValue,
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Quantité à ajuster"
+                      />
+                    </div>
+
+                    {/* Motif */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Motif *
+                      </label>
+                      <textarea
+                        required
+                        value={formData.motif}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            motif: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        rows="3"
+                        placeholder="Motif de l'ajustement de stock"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {activeTab === "TRANSFERT" && (
+                  <>
+                    {/* Entrepôt source */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Entrepôt source *
+                      </label>
+                      <select
+                        required
+                        value={formData.id_entrepot}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            id_entrepot: e.target.value,
+                            id_produit: "", // Réinitialiser le produit quand on change d'entrepôt
+                            id_entrepot_dest: "", // Réinitialiser aussi la destination
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      >
+                        <option value="">Sélectionner l'entrepôt source</option>
+                        {warehouses.map((warehouse) => (
+                          <option
+                            key={warehouse.id_entrepot}
+                            value={warehouse.id_entrepot}
+                          >
+                            {warehouse.nom_entrepot}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Produit */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Produit *
+                      </label>
+                      <select
+                        required
+                        value={formData.id_produit}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            id_produit: e.target.value,
+                          })
+                        }
+                        disabled={!formData.id_entrepot}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      >
+                        <option value="">
+                          {!formData.id_entrepot ? "Sélectionnez d'abord l'entrepôt source" : "Sélectionner un produit"}
+                        </option>
+                        {formData.id_entrepot && products.filter(product => product.id_entrepot === formData.id_entrepot).map((product) => (
+                          <option
+                            key={product.id_produit}
+                            value={product.id_produit}
+                          >
+                            {product.designation} ({product.sku}) - Stock: {product.quantite_disponible || 0}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Entrepôt destination */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Entrepôt destination *
+                      </label>
+                      <select
+                        required
+                        value={formData.id_entrepot_dest}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            id_entrepot_dest: e.target.value,
+                          })
+                        }
+                        disabled={!formData.id_entrepot}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      >
+                        <option value="">
+                          {!formData.id_entrepot ? "Sélectionnez d'abord l'entrepôt source" : "Sélectionner l'entrepôt destination"}
+                        </option>
+                        {warehouses
+                          .filter(w => w.id_entrepot !== formData.id_entrepot)
+                          .map((warehouse) => (
+                            <option
+                              key={warehouse.id_entrepot}
+                              value={warehouse.id_entrepot}
+                            >
+                              {warehouse.nom_entrepot}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    {/* Quantité */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Quantité *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        value={formData.quantite}
+                        onChange={(e) => {
+                          const validatedValue = validateNumberInput(e.target.value);
+                          setFormData({
+                            ...formData,
+                            quantite: validatedValue,
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        placeholder="Quantité à transférer"
+                      />
+                    </div>
+
+                    {/* Motif */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Motif *
+                      </label>
+                      <textarea
+                        required
+                        value={formData.motif}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            motif: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        rows="3"
+                        placeholder="Motif du transfert de stock"
+                      />
+                    </div>
+                  </>
                 )}
               </form>
             </div>
@@ -875,7 +1221,12 @@ function Mouvements() {
                   type="submit"
                   form="movement-form"
                   disabled={submitting}
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  className={`px-4 py-2 text-sm text-white rounded hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 ${
+                    activeTab === "ENTREE" ? "bg-green-600 hover:bg-green-700" :
+                    activeTab === "SORTIE" ? "bg-red-600 hover:bg-red-700" :
+                    activeTab === "AJUSTEMENT" ? "bg-blue-600 hover:bg-blue-700" :
+                    "bg-purple-600 hover:bg-purple-700"
+                  }`}
                 >
                   {submitting ? (
                     <>
@@ -883,7 +1234,12 @@ function Mouvements() {
                       Enregistrement...
                     </>
                   ) : (
-                    "Enregistrer"
+                    <>
+                      {activeTab === "ENTREE" && "Enregistrer l'entrée"}
+                      {activeTab === "SORTIE" && "Enregistrer la sortie"}
+                      {activeTab === "AJUSTEMENT" && "Enregistrer l'ajustement"}
+                      {activeTab === "TRANSFERT" && "Enregistrer le transfert"}
+                    </>
                   )}
                 </button>
               </div>
@@ -982,12 +1338,13 @@ function Mouvements() {
                   min="0"
                   required
                   value={newProductForm.quantite_stock}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const validatedValue = validateNumberInput(e.target.value);
                     setNewProductForm({
                       ...newProductForm,
-                      quantite_stock: e.target.value,
-                    })
-                  }
+                      quantite_stock: validatedValue,
+                    });
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   placeholder="0"
                 />
@@ -1002,12 +1359,13 @@ function Mouvements() {
                   step="0.01"
                   required
                   value={newProductForm.prix_unitaire}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const validatedValue = validateNumberInput(e.target.value);
                     setNewProductForm({
                       ...newProductForm,
-                      prix_unitaire: e.target.value,
-                    })
-                  }
+                      prix_unitaire: validatedValue,
+                    });
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   placeholder="0"
                 />

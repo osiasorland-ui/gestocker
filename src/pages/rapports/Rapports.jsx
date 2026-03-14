@@ -22,7 +22,7 @@ import {
   Edit,
   Trash2,
 } from "lucide-react";
-import { supabase } from "../../config/supabase";
+import { supabase } from "../../config/auth.js";
 import { useAuth } from "../../hooks/useAuthHook.js";
 
 // Import des composants UI
@@ -543,7 +543,7 @@ const Rapports = () => {
   }
 
   return (
-    <div className="p-10 mx-auto">
+    <div className="p-5 mx-auto">
       {/* Loader */}
       {loading && <PageLoader text="Chargement des rapports..." />}
       {!loading && (

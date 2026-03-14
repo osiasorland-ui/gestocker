@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { categories } from "../../config/supabase";
+import { categories } from "../../config/auth";
 import { useAuth } from "../../hooks/useAuthHook.js";
 import Notification from "../../components/Notification";
 import {
@@ -286,7 +286,7 @@ function Categories() {
   ];
 
   return (
-    <div className="space-y-6 mx-auto p-10">
+    <div className="space-y-6 mx-auto p-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

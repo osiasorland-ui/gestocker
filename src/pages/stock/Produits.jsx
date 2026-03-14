@@ -5,12 +5,11 @@ import React, {
   useMemo,
   useRef,
 } from "react";
-import { products, warehouses, categories } from "../../config/supabase";
+import { products, warehouses, categories } from "../../config/auth";
 import { useAuth } from "../../hooks/useAuthHook.js";
 import { useDevise } from "../../hooks/useDevise.js";
 import { useNotification } from "../../hooks/useNotification";
 import Notification from "../../components/Notification";
-import TransferModal from "../../components/TransferModal";
 import {
   Plus,
   Search,
@@ -24,7 +23,6 @@ import {
   Building,
   Tag,
   X,
-  ArrowRightLeft,
 } from "lucide-react";
 
 // Import des composants UI
@@ -56,7 +54,6 @@ function Produits() {
   const [showBulkAddModal, setShowBulkAddModal] = useState(false);
   const [editingProduit, setEditingProduit] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showTransferModal, setShowTransferModal] = useState(false);
   const [csvFile, setCsvFile] = useState(null);
   const [selectedBulkCategory, setSelectedBulkCategory] = useState("");
   const [selectedBulkWarehouse, setSelectedBulkWarehouse] = useState("");
@@ -494,13 +491,9 @@ function Produits() {
     }
   };
 
-  const handleTransferSuccess = () => {
-    loadData(); // Recharger les données pour voir les nouveaux stocks
-    notify.success("Transfert effectué avec succès");
-  };
 
   return (
-    <div className="space-y-6 mx-auto p-10">
+    <div className="space-y-6 mx-auto p-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -510,13 +503,6 @@ function Produits() {
           <p className="text-gray-600">Gérez votre catalogue de produits</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowTransferModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <ArrowRightLeft className="w-4 h-4" />
-            Transférer
-          </button>
           <button
             onClick={() => setShowBulkAddModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -1071,12 +1057,6 @@ function Produits() {
         </div>
       )}
 
-      {/* Transfer Modal */}
-      <TransferModal
-        isOpen={showTransferModal}
-        onClose={() => setShowTransferModal(false)}
-        onSuccess={handleTransferSuccess}
-      />
 
       <Notification />
     </div>

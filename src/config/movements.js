@@ -1,4 +1,4 @@
-import { supabase } from "./auth.js";
+import { supabase, createAdminClient } from "./auth.js";
 
 // Fonction utilitaire pour retry des requêtes avec backoff exponentiel
 const retryRequest = async (requestFn, maxRetries = 3, delay = 1000) => {
@@ -81,8 +81,9 @@ export const movements = {
     entrepriseId,
   ) => {
     return retryRequest(async () => {
+      const supabaseAdmin = createAdminClient();
       // Vérifier si un enregistrement de stock existe déjà
-      const { data: existingStock, error: stockError } = await supabase
+      const { data: existingStock, error: stockError } = await supabaseAdmin
         .from("stocks")
         .select("*")
         .eq("id_produit", productId)
@@ -108,7 +109,7 @@ export const movements = {
           newQuantity = quantity; // Pour les ajustements, la quantité est la nouvelle valeur
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from("stocks")
           .update({ quantite_disponible: newQuantity })
           .eq("id_stock", existingStock.id_stock);
@@ -119,7 +120,7 @@ export const movements = {
         // Créer un nouvel enregistrement de stock
         newQuantity = movementType === "SORTIE" ? 0 : quantity;
 
-        const { data, error } = await supabase.from("stocks").insert({
+        const { data, error } = await supabaseAdmin.from("stocks").insert({
           id_produit: productId,
           id_entrepot: warehouseId,
           quantite_disponible: newQuantity,

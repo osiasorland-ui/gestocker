@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuthHook.js";
-import { supabase } from "../../config/supabase.js";
+import { supabase } from "../../config/auth.js";
 import { PageLoader } from "../../components/ui/Loader.jsx";
 import { backupService } from "../../utils/backupService.js";
 import { useNotification } from "../../hooks/useNotification.js";
@@ -506,7 +506,7 @@ const Parametres = () => {
   }, {});
 
   return (
-    <div className="p-10 mx-auto">
+    <div className="p-5 mx-auto">
       {/* Loader */}
       {loading && <PageLoader text="Chargement des paramètres..." />}
       {!loading && (

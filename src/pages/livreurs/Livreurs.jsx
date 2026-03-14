@@ -17,7 +17,7 @@ import {
   Bike,
   Package,
 } from "lucide-react";
-import { livreurs } from "../../config/supabase";
+import { livreurs } from "../../config/auth";
 import { useAuth } from "../../hooks/useAuthHook.js";
 import { useNotification } from "../../hooks/useNotification";
 import Notification from "../../components/Notification";
@@ -400,7 +400,7 @@ const Livreurs = () => {
   );
 
   return (
-    <div className="p-10 mx-auto">
+    <div className="p-5 mx-auto">
       {/* Loader */}
       {loading && <PageLoader text="Chargement des livreurs..." />}
       {!loading && (

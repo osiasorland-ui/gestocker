@@ -545,7 +545,7 @@ function Dashboard() {
   };
 
   return (
-    <div className="mx-auto p-10">
+    <div className="mx-auto p-5">
       {/* Loader */}
       {loading && <PageLoader text="Chargement du tableau de bord..." />}
 
@@ -579,7 +579,7 @@ function Dashboard() {
                   <p className="text-sm font-medium text-gray-600">
                     Total Produits
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-xl font-bold text-gray-900">
                     {stats.totalProducts.toLocaleString()}
                   </p>
                 </div>
@@ -595,7 +595,7 @@ function Dashboard() {
                   <p className="text-sm font-medium text-gray-600">
                     Catégories
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-xl font-bold text-gray-900">
                     {stats.totalCategories.toLocaleString()}
                   </p>
                 </div>
@@ -609,7 +609,7 @@ function Dashboard() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Entrepôts</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-xl font-bold text-gray-900">
                     {stats.totalWarehouses.toLocaleString()}
                   </p>
                 </div>
@@ -625,7 +625,7 @@ function Dashboard() {
                   <p className="text-sm font-medium text-gray-600">
                     Valeur Stock
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-xl font-bold text-gray-900">
                     {loading || deviseLoading
                       ? "Chargement..."
                       : formatMontant(stats.totalStockValue)}

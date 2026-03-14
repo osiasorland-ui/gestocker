@@ -1,12 +1,10 @@
 import { createAdminClient } from "./auth.js";
 
-// Créer un client admin pour éviter les problèmes d'autorisation
-const supabaseAdmin = createAdminClient();
-
 // Fonctions pour la gestion des fournisseurs
 export const fournisseurs = {
   // Obtenir tous les fournisseurs d'une entreprise
   getAll: async (entrepriseId) => {
+    const supabaseAdmin = createAdminClient();
     const { data, error } = await supabaseAdmin
       .from("fournisseurs")
       .select("*")
@@ -130,6 +128,16 @@ export const fournisseurs = {
       error,
     };
   },
+
+  // Insérer plusieurs fournisseurs en masse
+  bulkInsert: async (fournisseursData) => {
+    const { data, error } = await supabaseAdmin
+      .from("fournisseurs")
+      .insert(fournisseursData)
+      .select();
+
+    return { data, error };
+  }
 };
 
 export default fournisseurs;

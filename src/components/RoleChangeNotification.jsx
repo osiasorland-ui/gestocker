@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../hooks/useAuthHook.js";
-import { supabase } from "../config/supabase.js";
+import { supabase } from "../config/auth.js";
 import { AlertCircle, X, RefreshCw } from "lucide-react";
 
 const RoleChangeNotification = () => {

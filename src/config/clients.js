@@ -142,6 +142,16 @@ export const clients = {
       total: data?.length || 0, 
       error 
     };
+  },
+
+  // Insérer plusieurs clients en masse
+  bulkInsert: async (clientsData) => {
+    const { data, error } = await supabase
+      .from("clients")
+      .insert(clientsData)
+      .select();
+
+    return { data, error };
   }
 };
 

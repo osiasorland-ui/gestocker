@@ -11,7 +11,7 @@ import {
   Receipt,
   CreditCard,
 } from "lucide-react";
-import { supabase } from "../../config/supabase";
+import { supabase } from "../../config/auth.js";
 import { useAuth } from "../../hooks/useAuthHook.js";
 
 import Card, {
@@ -568,7 +568,7 @@ const CreateRapport = () => {
   }
 
   return (
-    <div className="p-10 mx-auto">
+    <div className="p-5 mx-auto">
       {/* Loader */}
       {loading && <PageLoader text="Sauvegarde du rapport..." />}
       {!loading && (

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { useAuth } from "../hooks/useAuthHook.js";
-import { companies } from "../config/supabase.js";
+import { companies } from "../config/auth.js";
 import { Building2, Upload, Save, Camera, X } from "lucide-react";
 
 const Parametres = () => {

@@ -4,8 +4,12 @@ import { supabase, createAdminClient } from "./auth.js";
 export const warehouses = {
   // Obtenir tous les entrepôts de l'entreprise avec le nombre de produits, le stock total et les infos du gérant
   getAll: async (entrepriseId) => {
+    // Créer un seul admin client pour toute la fonction
+    const supabaseAdmin = createAdminClient();
+    console.log("Client admin utilisé dans warehouses.getAll:", supabaseAdmin);
+    
     // D'abord, récupérer les entrepôts
-    const { data: warehouses, error } = await supabase
+    const { data: warehouses, error } = await supabaseAdmin
       .from("entrepots")
       .select("*")
       .eq("id_entreprise", entrepriseId)
@@ -19,22 +23,23 @@ export const warehouses = {
     // Pour chaque entrepôt, compter les produits ET récupérer les infos du gérant manuellement
     const warehousesWithStats = await Promise.all(
       (warehouses || []).map(async (warehouse) => {
-        // Obtenir tous les produits dans cet entrepôt avec leurs quantités
-        const { data: productsInWarehouse, error: countError } = await supabase
+        // Obtenir tous les produits dans cet entrepôt avec leurs quantités et catégories
+        const { data: productsInWarehouse, error: countError } = await supabaseAdmin
           .from("produits")
-          .select("quantite_stock")
+          .select("quantite_stock, id_categorie")
           .eq("id_entrepot", warehouse.id_entrepot);
 
         // Récupérer manuellement les infos du gérant si id_gerant existe
         let gerantInfo = null;
         if (warehouse.id_gerant) {
-          const supabaseAdmin = createAdminClient();
+          console.log("Recherche du gérant pour l'entrepôt:", warehouse.id_gerant);
+          console.log("Client admin utilisé pour la recherche de gérant:", supabaseAdmin);
           const { data: gerantData } = await supabaseAdmin
             .from("utilisateurs")
             .select("id_user, nom, prenom, email")
             .eq("id_user", warehouse.id_gerant)
             .eq("statut", "actif")
-            .single();
+            .maybeSingle();
 
           gerantInfo = gerantData;
           console.log(
@@ -45,7 +50,7 @@ export const warehouses = {
           console.log(`Pas de gérant assigné pour ${warehouse.nom_entrepot}`);
         }
 
-        // Calculer le stock total (somme des quantités)
+        // Calculer le stock total et le nombre de catégories uniques
         const stockTotal = countError
           ? 0
           : (productsInWarehouse || []).reduce(
@@ -53,10 +58,17 @@ export const warehouses = {
               0,
             );
 
+        // Calculer le nombre de catégories uniques
+        const uniqueCategories = countError
+          ? []
+          : [...new Set((productsInWarehouse || []).map(p => p.id_categorie).filter(Boolean))];
+        const nombreCategories = uniqueCategories.length;
+
         return {
           ...warehouse,
           nombre_produits: countError ? 0 : (productsInWarehouse || []).length,
           stock_total: stockTotal,
+          nombres_categories: nombreCategories,
           // Ajouter les infos du gérant pour l'affichage
           gerant_nom: gerantInfo?.nom,
           gerant_prenom: gerantInfo?.prenom,
@@ -73,7 +85,8 @@ export const warehouses = {
 
   // Créer un nouvel entrepôt
   create: async (warehouseData) => {
-    const { data, error } = await supabase
+    const supabaseAdmin = createAdminClient();
+    const { data, error } = await supabaseAdmin
       .from("entrepots")
       .insert(warehouseData)
       .select()
@@ -84,7 +97,8 @@ export const warehouses = {
 
   // Mettre à jour un entrepôt
   update: async (warehouseId, warehouseData) => {
-    const { data, error } = await supabase
+    const supabaseAdmin = createAdminClient();
+    const { data, error } = await supabaseAdmin
       .from("entrepots")
       .update(warehouseData)
       .eq("id_entrepot", warehouseId)
@@ -96,7 +110,8 @@ export const warehouses = {
 
   // Supprimer un entrepôt
   delete: async (warehouseId) => {
-    const { data, error } = await supabase
+    const supabaseAdmin = createAdminClient();
+    const { data, error } = await supabaseAdmin
       .from("entrepots")
       .delete()
       .eq("id_entrepot", warehouseId);
@@ -107,8 +122,9 @@ export const warehouses = {
   // Générer une référence d'entrepôt au format EN000001
   generateReference: async (entrepriseId) => {
     try {
+      const supabaseAdmin = createAdminClient();
       // Obtenir tous les entrepôts existants pour trouver le plus grand numéro
-      const { data: existingWarehouses, error } = await supabase
+      const { data: existingWarehouses, error } = await supabaseAdmin
         .from("entrepots")
         .select("nom_entrepot")
         .eq("id_entreprise", entrepriseId);

@@ -14,10 +14,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: window.localStorage, // Force localStorage au lieu de sessionStorage
     storageKey: "supabase.auth.token", // Clé de stockage personnalisée
   },
-  // Ajout de configuration pour gérer les connexions instables
+  // Ajout de configuration pour gérer les connexions instables et headers corrects
   global: {
     headers: {
-      Connection: "keep-alive",
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "Connection": "keep-alive",
     },
   },
   db: {
@@ -30,17 +32,38 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// Fonction utilitaire pour créer un client admin temporaire
+// Singleton pour l'admin client - éviter les multiples instances
+let adminClientInstance = null;
+
+// Fonction utilitaire pour créer un client admin temporaire (singleton)
 export const createAdminClient = () => {
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-    db: {
-      schema: "public",
-    },
-  });
+  // Forcer la recréation pour le debugging
+  adminClientInstance = null;
+  
+  if (!adminClientInstance) {
+    console.log("Création d'une nouvelle instance admin client...");
+    adminClientInstance = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+      global: {
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Connection": "keep-alive",
+          "Prefer": "return=representation",
+        },
+      },
+      db: {
+        schema: "public",
+      },
+    });
+    console.log("Headers du client admin:", adminClientInstance.global?.headers);
+  } else {
+    console.log("Réutilisation de l'instance admin client existante");
+  }
+  return adminClientInstance;
 };
 
 // Exporter createClient pour utilisation avec service role
@@ -563,5 +586,30 @@ export const auth = {
     return supabase.auth.onAuthStateChange(callback);
   },
 };
+
+// Réexporter les modules supplémentaires pour compatibilité
+export { categories } from "./categories.js";
+export { products } from "./products.js";
+export { warehouses } from "./warehouses.js";
+export { users } from "./users.js";
+export { companies } from "./companies.js";
+export { stocks } from "./stocks.js";
+export { clients } from "./clients.js";
+export { fournisseurs } from "./fournisseurs.js";
+export { livreurs } from "./livreurs.js";
+export { orders } from "./orders.js";
+export { sales } from "./sales.js";
+export { otp } from "./otp.js";
+export { livraisons } from "./livraisons.js";
+export { parametres } from "./parametres.js";
+export { transfers } from "./transfers.js";
+
+// Export des services de mouvements
+export {
+  mouvementsUnifie,
+  entreesStock,
+  sortiesStock,
+  ajustementsStock
+} from "./services/mouvementsServices.js";
 
 export default auth;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../hooks/useAuthHook.js";
-import { createAdminClient } from "../../config/supabase.js";
+import { createAdminClient } from "../../config/auth.js";
 import {
   Edit,
   Trash2,
@@ -27,8 +27,21 @@ import TableUsers from "./TableUsers.jsx";
 import { createSuperUserRoleChangeNotification } from "../../components/AdminApprovalNotification.jsx";
 import RoleChangeNotification from "../../components/RoleChangeNotification.jsx";
 
-// Constantes pour les rôles basées sur la base de données
+// Constantes pour les rôles basées sur la base de données (sans Admin pour l'affichage)
 const ROLES = [
+  { id: "1dd58d9b-ab78-4b62-ac8d-1d6234e89e81", libelle: "Gerant Principal" },
+  { id: "2330adb2-bce2-4d87-81de-15cc2b2cb325", libelle: "Gerant" },
+  { id: "2368d31f-4091-4e83-adff-30d7952dad8b", libelle: "Comptable" },
+  { id: "550e8400-e29b-41d4-a716-446655440003", libelle: "Employé" },
+  { id: "a033e29c-94f6-4eb3-9243-a9424ec20357", libelle: "Super User" },
+  {
+    id: "ad7b07cb-2ba3-4ba1-a8d6-f053c6b46b46",
+    libelle: "Directeur commercial",
+  },
+];
+
+// Tous les rôles y compris Admin (pour la logique interne)
+const ALL_ROLES = [
   { id: "1dd58d9b-ab78-4b62-ac8d-1d6234e89e81", libelle: "Gerant Principal" },
   { id: "2330adb2-bce2-4d87-81de-15cc2b2cb325", libelle: "Gerant" },
   { id: "2368d31f-4091-4e83-adff-30d7952dad8b", libelle: "Comptable" },
@@ -45,33 +58,38 @@ const ADMIN_ROLE_ID = "5a0fa61f-9db1-4caa-a030-c1f6c5c99ee3";
 const SUPER_USER_ROLE_ID = "a033e29c-94f6-4eb3-9243-a9424ec20357";
 const DIRECTEUR_COMMERCIAL_ROLE_ID = "ad7b07cb-2ba3-4ba1-a8d6-f053c6b46b46";
 
-// Fonction pour vérifier si un Directeur commercial existe déjà pour une entreprise
-const checkDirecteurCommercialExists = async (entrepriseId) => {
-  if (!entrepriseId) return false;
+// Fonction pour vérifier si un rôle unique existe déjà pour une entreprise
+const checkUniqueRoleExists = async (entrepriseId, roleId) => {
+  if (!entrepriseId || !roleId) return false;
 
   try {
     const supabaseAdmin = createAdminClient();
     const { data, error } = await supabaseAdmin
       .from("utilisateurs")
       .select("id_user")
-      .eq("id_role", DIRECTEUR_COMMERCIAL_ROLE_ID)
+      .eq("id_role", roleId)
       .eq("id_entreprise", entrepriseId)
       .eq("statut", "actif")
       .limit(1);
 
     return !error && data && data.length > 0;
   } catch (error) {
-    console.error("Erreur vérification Directeur commercial:", error);
+    console.error("Erreur vérification rôle unique:", error);
     return false;
   }
 };
 
+// Fonction pour vérifier si un Directeur commercial existe déjà pour une entreprise (gardée pour compatibilité)
+const checkDirecteurCommercialExists = async (entrepriseId) => {
+  return checkUniqueRoleExists(entrepriseId, DIRECTEUR_COMMERCIAL_ROLE_ID);
+};
+
 // Filtrer les rôles disponibles selon le rôle de l'utilisateur connecté et l'entreprise
 const getAvailableRoles = async (currentUser, entrepriseId = null) => {
-  if (!currentUser) return ROLES;
+  if (!currentUser) return ROLES; // Retourner ROLES (sans Admin) pour l'affichage par défaut
 
   const userRoleId = currentUser.role_id || currentUser.id_role;
-  let availableRoles = [...ROLES];
+  let availableRoles = [...ALL_ROLES]; // Utiliser ALL_ROLES pour la logique interne
 
   // Si l'utilisateur est Admin, exclure seulement le rôle Admin (mais peut créer Super User)
   if (userRoleId === ADMIN_ROLE_ID) {
@@ -85,8 +103,25 @@ const getAvailableRoles = async (currentUser, entrepriseId = null) => {
     );
   }
 
-  // Vérifier si un Directeur commercial existe déjà pour cette entreprise
+  // Vérifier si les rôles uniques existent déjà pour cette entreprise
   if (entrepriseId) {
+    // Vérifier Super User
+    const superUserExists = await checkUniqueRoleExists(entrepriseId, SUPER_USER_ROLE_ID);
+    if (superUserExists) {
+      availableRoles = availableRoles.filter(
+        (role) => role.id !== SUPER_USER_ROLE_ID,
+      );
+    }
+
+    // Vérifier Gérant Principal
+    const gerantPrincipalExists = await checkUniqueRoleExists(entrepriseId, "1dd58d9b-ab78-4b62-ac8d-1d6234e89e81");
+    if (gerantPrincipalExists) {
+      availableRoles = availableRoles.filter(
+        (role) => role.id !== "1dd58d9b-ab78-4b62-ac8d-1d6234e89e81",
+      );
+    }
+
+    // Vérifier Directeur commercial
     const directeurExists = await checkDirecteurCommercialExists(entrepriseId);
     if (directeurExists) {
       availableRoles = availableRoles.filter(
@@ -95,7 +130,8 @@ const getAvailableRoles = async (currentUser, entrepriseId = null) => {
     }
   }
 
-  return availableRoles;
+  // Retourner les rôles sans Admin pour l'affichage
+  return availableRoles.filter((role) => role.id !== ADMIN_ROLE_ID);
 };
 
 // Vérifier si l'utilisateur connecté est Admin ou Super User
@@ -1405,7 +1441,7 @@ const Utilisateurs = () => {
   };
 
   return (
-    <div className="p-10 mx-auto">
+    <div className="p-5 mx-auto">
       {/* Composant de notification de changement de rôle */}
       <RoleChangeNotification />
 
@@ -1493,7 +1529,7 @@ const Utilisateurs = () => {
               setFilterRole={setFilterRole}
               filterStatus={filterStatus}
               setFilterStatus={setFilterStatus}
-              availableRoles={availableRoles}
+              availableRoles={ROLES}
             />
           </div>
           {/* Section 3: Tableau des utilisateurs */}

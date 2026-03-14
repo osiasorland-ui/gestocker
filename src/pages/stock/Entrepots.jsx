@@ -13,11 +13,9 @@ import {
   User,
   Building,
   TrendingUp,
-  ArrowRightLeft,
 } from "lucide-react";
-import { warehouses, createAdminClient } from "../../config/supabase";
+import { warehouses, createAdminClient } from "../../config/auth";
 import { useAuth } from "../../hooks/useAuthHook.js";
-import TransferModal from "../../components/TransferModal";
 
 // Import des composants UI
 import Card, {
@@ -43,7 +41,6 @@ function Entrepots() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showStockModal, setShowStockModal] = useState(false);
-  const [showTransferModal, setShowTransferModal] = useState(false);
   const [showAssignGerantModal, setShowAssignGerantModal] = useState(false);
   const [editingEntrepot, setEditingEntrepot] = useState(null);
   const [selectedEntrepot, setSelectedEntrepot] = useState(null);
@@ -790,7 +787,7 @@ function Entrepots() {
   };
 
   return (
-    <div className="space-y-6 mx-auto p-10">
+    <div className="space-y-6 mx-auto p-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -800,13 +797,6 @@ function Entrepots() {
           <p className="text-gray-600">Gérez vos entrepôts et leurs stocks</p>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={() => setShowTransferModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <ArrowRightLeft className="w-4 h-4" />
-            Transférer un stock
-          </button>
           <button
             onClick={() => setShowAddModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
@@ -1007,6 +997,9 @@ function Entrepots() {
                     Date de création
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Catégories
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Produits
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1021,7 +1014,7 @@ function Entrepots() {
                 {filteredEntrepots.length === 0 ? (
                   <tr>
                     <td
-                      colSpan="8"
+                      colSpan="9"
                       className="px-6 py-12 text-center text-gray-500"
                     >
                       <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
@@ -1070,6 +1063,12 @@ function Entrepots() {
                         {new Date(entrepot.created_at).toLocaleDateString(
                           "fr-FR",
                         )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="text-sm font-semibold text-gray-900">
+                          {entrepot.nombres_categories || 0}
+                        </div>
+                        <div className="text-xs text-gray-500">Catégories</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="text-sm font-semibold text-gray-900">
@@ -1496,18 +1495,8 @@ function Entrepots() {
           </div>
         </div>
       )}
-
-      {/* Transfer Modal */}
-      <TransferModal
-        isOpen={showTransferModal}
-        onClose={() => setShowTransferModal(false)}
-        onSuccess={() => {
-          // Rafraîchir les données si nécessaire
-          loadEntrepots();
-        }}
-      />
     </div>
   );
-}
+};
 
 export default Entrepots;

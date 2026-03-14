@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "./useAuthHook.js";
-import { supabase } from "../config/supabase.js";
+import { supabase } from "../config/auth.js";
 
 // Clé pour stocker la devise localement
 const DEVISE_STORAGE_KEY = "gestocker_devise";

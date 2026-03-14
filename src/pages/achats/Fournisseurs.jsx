@@ -16,6 +16,7 @@ import {
   Upload,
   Download,
   Star,
+  X,
 } from "lucide-react";
 import Loader, { PageLoader } from "../../components/ui/Loader";
 
@@ -52,9 +53,11 @@ function Fournisseurs() {
   const [fournisseursList, setFournisseursList] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showBulkAddModal, setShowBulkAddModal] = useState(false);
   const [editingFournisseur, setEditingFournisseur] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [bulkFournisseurs, setBulkFournisseurs] = useState("");
   const { profile } = useAuth();
   const { showSuccess, showError } = useNotification();
   const [notification, setNotification] = useState(null);
@@ -426,6 +429,138 @@ function Fournisseurs() {
     setShowAddModal(true);
   };
 
+  const handleAddFournisseur = () => {
+    setEditingFournisseur(null);
+    resetForm();
+    setShowAddModal(true);
+  };
+
+  const handleBulkAddFournisseur = () => {
+    setBulkFournisseurs("");
+    setShowBulkAddModal(true);
+  };
+
+  // Traiter l'ajout en masse de fournisseurs
+  const handleBulkAddFournisseurs = async () => {
+    if (!profile?.entreprises?.id_entreprise) {
+      showError("Utilisateur non connecté ou entreprise non trouvée");
+      return;
+    }
+
+    if (!bulkFournisseurs.trim()) {
+      showError("Veuillez entrer au moins un fournisseur");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const lines = bulkFournisseurs
+        .trim()
+        .split("\n")
+        .filter((line) => line.trim());
+
+      const fournisseursToInsert = [];
+
+      for (const line of lines) {
+        // Format: nom_fournisseur,telephone_fournisseur,email_fournisseur,contact_nom,contact_telephone,contact_email,adresse,conditions_paiement,delai_livraison,rating
+        const fields = line.split(",").map(field => field.trim());
+        
+        if (fields.length < 8) {
+          showError(`Ligne invalide: ${line}. Format requis: nom_fournisseur,telephone_fournisseur,email_fournisseur,contact_nom,contact_telephone,contact_email,adresse,conditions_paiement,delai_livraison,rating`);
+          return;
+        }
+
+        // Parser avec les champs optionnels
+        let nom_fournisseur, telephone_fournisseur, email_fournisseur, contact_nom, contact_telephone, contact_email, adresse, conditions_paiement, delai_livraison, rating;
+
+        if (fields.length === 8) {
+          // Format sans conditions_paiement et delai_livraison
+          [nom_fournisseur, telephone_fournisseur, email_fournisseur, contact_nom, contact_telephone, contact_email, adresse, rating] = fields;
+          conditions_paiement = null;
+          delai_livraison = null;
+        } else if (fields.length === 10) {
+          // Format complet avec conditions_paiement et delai_livraison
+          [nom_fournisseur, telephone_fournisseur, email_fournisseur, contact_nom, contact_telephone, contact_email, adresse, conditions_paiement, delai_livraison, rating] = fields;
+        } else {
+          showError(`Ligne invalide: ${line}. Format requis (8 ou 10 champs): nom_fournisseur,telephone_fournisseur,email_fournisseur,contact_nom,contact_telephone,contact_email,adresse,[conditions_paiement,delai_livraison,]rating`);
+          return;
+        }
+
+        // Validation basique - champs obligatoires
+        if (!nom_fournisseur || !telephone_fournisseur || !email_fournisseur || !contact_nom || !contact_telephone || !contact_email || !adresse || !rating) {
+          showError(`Ligne invalide: ${line}. Tous les champs obligatoires doivent être remplis`);
+          return;
+        }
+
+        // Validation format téléphone (format exact)
+        const phoneRegex = /^\+229\d{10}$/;
+        if (telephone_fournisseur && !phoneRegex.test(telephone_fournisseur)) {
+          showError(`Format de téléphone invalide: ${telephone_fournisseur}. Format attendu: +2290112345678`);
+          return;
+        }
+
+        if (contact_telephone && !phoneRegex.test(contact_telephone)) {
+          showError(`Format de téléphone contact invalide: ${contact_telephone}. Format attendu: +2290112345678`);
+          return;
+        }
+
+        // Validation email
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email_fournisseur)) {
+          showError(`Format d'email invalide: ${email_fournisseur}`);
+          return;
+        }
+
+        if (contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact_email)) {
+          showError(`Format d'email contact invalide: ${contact_email}`);
+          return;
+        }
+
+        // Validation rating (doit être un entier entre 1 et 5, comme le formulaire StarRating)
+        const ratingNum = parseInt(rating);
+        if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+          showError(`Format d'évaluation invalide: ${rating}. L'évaluation doit être un nombre entier entre 1 et 5`);
+          return;
+        }
+
+        fournisseursToInsert.push({
+          id_entreprise: profile.entreprises.id_entreprise,
+          nom_fournisseur: nom_fournisseur.trim(),
+          telephone_fournisseur: telephone_fournisseur.trim(),
+          email_fournisseur: email_fournisseur.trim(),
+          contact_nom: contact_nom?.trim() || null,
+          contact_telephone: contact_telephone?.trim() || null,
+          contact_email: contact_email?.trim() || null,
+          adresse: adresse?.trim() || null,
+          conditions_paiement: conditions_paiement?.trim() || null,
+          delai_livraison: delai_livraison?.trim() || null,
+          rating: ratingNum,
+        });
+      }
+
+      // Insérer tous les fournisseurs
+      const { error } = await fournisseurs.bulkInsert(fournisseursToInsert);
+
+      if (error) {
+        console.error("Erreur lors de l'ajout en masse:", error);
+        showError(`Erreur lors de l'ajout: ${error.message}`);
+      } else {
+        showSuccess(`${fournisseursToInsert.length} fournisseur(s) ajouté(s) avec succès`);
+        // Fermer la modal et réinitialiser
+        setShowBulkAddModal(false);
+        setBulkFournisseurs("");
+        setError("");
+        loadFournisseurs(); // Rafraîchir la liste
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'ajout en masse:", error);
+      showError(`Erreur lors de l'ajout: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async (id_fournisseur) => {
     if (!confirm("Êtes-vous sûr de vouloir supprimer ce fournisseur ?")) return;
 
@@ -487,7 +622,7 @@ function Fournisseurs() {
   };
 
   return (
-    <div className="space-y-6 mx-auto p-10">
+    <div className="space-y-6 mx-auto p-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -507,11 +642,18 @@ function Fournisseurs() {
             Exporter
           </button>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={handleAddFournisseur}
             className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Ajouter un fournisseur
+          </button>
+          <button
+            onClick={handleBulkAddFournisseur}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Ajout en masse
           </button>
         </div>
       </div>
@@ -593,7 +735,7 @@ function Fournisseurs() {
                         </p>
                         {!searchTerm && (
                           <button
-                            onClick={() => setShowAddModal(true)}
+                            onClick={handleAddFournisseur}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
                           >
                             <Plus className="w-4 h-4" />
@@ -669,12 +811,14 @@ function Fournisseurs() {
                         </td>
                         <td className="px-4 py-2 whitespace-nowrap text-center">
                           <div className="text-sm text-gray-900">
-                            {fournisseur.conditions_paiement || "-"}
+                            {fournisseur.conditions_paiement || "-"}{" "}
+                            {fournisseur.conditions_paiement !== null ? "jours" : ""}
                           </div>
                         </td>
                         <td className="px-4 py-2 whitespace-nowrap text-center">
                           <div className="text-sm text-gray-900">
-                            {fournisseur.delai_livraison || "-"}
+                            {fournisseur.delai_livraison || "-"} {" "}
+                            {fournisseur.delai_livraison !== null ? "jours" : ""}
                           </div>
                         </td>
                         <td className="px-4 py-2 whitespace-nowrap text-center">
@@ -961,6 +1105,112 @@ function Fournisseurs() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ajout en masse de fournisseurs */}
+      {showBulkAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                Ajout en masse de fournisseurs
+              </h2>
+              <button
+                onClick={() => {
+                  setShowBulkAddModal(false);
+                  setBulkFournisseurs("");
+                  setError("");
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Instructions */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-medium text-blue-900 mb-2">
+                  Instructions de formatage
+                </h3>
+                <p className="text-sm text-blue-800">
+                  Entrez chaque fournisseur sur une ligne séparée au format :
+                </p>
+                <div className="mt-2 bg-blue-100 p-2 rounded">
+                  <code className="text-xs break-all">
+                    nom_fournisseur,telephone_fournisseur,email_fournisseur,contact_nom,contact_telephone,contact_email,adresse,[conditions_paiement,delai_livraison,]rating
+                  </code>
+                </div>
+                <p className="text-xs text-blue-600 mt-2">
+                  Format simple (8 champs) : "Entreprise ABC,+2290112345678,contact@entreprise.com,John Doe,+2290198765432,john@email.com,123 Rue Cotonou,3"
+                </p>
+                <p className="text-xs text-blue-600 mt-2">
+                  Format complet (10 champs) : "Entreprise ABC,+2290112345678,contact@entreprise.com,John Doe,+2290198765432,john@email.com,123 Rue Cotonou,30 jours,2 jours,3"
+                </p>
+                <p className="text-xs text-red-600 mt-2 font-medium">
+                  ⚠️ Tous les champs sont obligatoires
+                </p>
+              </div>
+
+              {/* Zone de texte pour la liste */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Liste des fournisseurs *
+                </label>
+                <textarea
+                  value={bulkFournisseurs}
+                  onChange={(e) => setBulkFournisseurs(e.target.value)}
+                  placeholder="Entrez la liste des fournisseurs au format CSV..."
+                  rows={10}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  {
+                    bulkFournisseurs.split("\n").filter((line) => line.trim())
+                      .length
+                  }{" "}
+                  fournisseur(s) détecté(s)
+                </p>
+              </div>
+
+              {/* Boutons d'action */}
+              <div className="flex justify-end space-x-3 pt-4 border-t">
+                <button
+                  onClick={() => {
+                    setShowBulkAddModal(false);
+                    setBulkFournisseurs("");
+                    setError("");
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleBulkAddFournisseurs}
+                  disabled={loading || !bulkFournisseurs.trim()}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Ajout en cours...
+                    </>
+                  ) : (
+                    <>
+                      <Building className="w-4 h-4 mr-2" />
+                      Ajouter{" "}
+                      {
+                        bulkFournisseurs.split("\n").filter((line) => line.trim())
+                          .length
+                      }{" "}
+                      fournisseur(s)
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

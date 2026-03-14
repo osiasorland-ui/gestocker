@@ -7,7 +7,13 @@ export { companies } from "./companies.js";
 export { products } from "./products.js";
 export { warehouses } from "./warehouses.js";
 export { categories } from "./categories.js";
-export { movements } from "./movements.js";
+// Export des services de mouvements spécifiques
+export { 
+  mouvementsUnifie, 
+  entreesStock, 
+  sortiesStock, 
+  ajustementsStock 
+} from "./services/mouvementsServices.js";
 export { stocks } from "./stocks.js";
 export { otp } from "./otp.js";
 export { livreurs } from "./livreurs.js";
@@ -15,6 +21,7 @@ export { livraisons } from "./livraisons.js";
 export { sales } from "./sales.js";
 export { clients } from "./clients.js";
 export { fournisseurs } from "./fournisseurs.js";
+export { orders } from "./orders.js";
 export { parametres } from "./parametres.js";
 
 // Export par défaut pour compatibilité

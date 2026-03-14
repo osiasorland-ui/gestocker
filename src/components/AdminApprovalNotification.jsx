@@ -4,7 +4,7 @@ import {
   supabase,
   createAdminClient,
   createClient,
-} from "../config/supabase.js";
+} from "../config/auth.js";
 import {
   AlertCircle,
   X,
